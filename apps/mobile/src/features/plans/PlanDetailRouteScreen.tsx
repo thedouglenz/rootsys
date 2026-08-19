@@ -25,7 +25,7 @@ import { cn } from "../../lib/cn";
 import { useThemeColor } from "../../lib/useThemeColor";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { environmentDags } from "../../state/dags";
-import { useProjects } from "../../state/entities";
+import { useProjects, useThreadShells } from "../../state/entities";
 import { useEnvironmentPresentation } from "../../state/presentation";
 import { useEnvironmentQuery } from "../../state/query";
 import { WorkspaceSidebarToolbar } from "../layout/workspace-sidebar-toolbar";
@@ -36,6 +36,7 @@ import {
   dagStatusTone,
   orderedDagNodeViews,
 } from "./planPresentation";
+import { type LinkedPlanThread, linkedPlanThreads, threadDagRoleLabel } from "./threadPlanLink";
 import { type DagDispatch, useDagDispatch } from "./useDagDispatch";
 
 type PlanDetailRouteScreenProps = StaticScreenProps<{
@@ -285,6 +286,45 @@ function NodeRow(props: {
   );
 }
 
+function LinkedThreadRow(props: {
+  readonly entry: LinkedPlanThread;
+  readonly first: boolean;
+  readonly onOpenThread: (threadId: ThreadId) => void;
+}) {
+  const { thread, role, nodeTitle } = props.entry;
+  const chevron = useThemeColor("--color-chevron");
+  const detail = [threadDagRoleLabel(role), nodeTitle]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open thread ${thread.title}`}
+      className={cn(
+        "flex-row items-center gap-3 p-4 active:opacity-70",
+        !props.first && "border-t border-border",
+      )}
+      onPress={() => props.onOpenThread(thread.id)}
+    >
+      <View className="min-w-0 flex-1 gap-1">
+        <Text className="text-base font-t3-medium text-foreground" numberOfLines={2}>
+          {thread.title}
+        </Text>
+        <Text className="text-sm text-foreground-muted" numberOfLines={1}>
+          {detail}
+        </Text>
+      </View>
+      <SymbolView
+        name="chevron.right"
+        size={16}
+        tintColor={chevron}
+        type="monochrome"
+        weight="semibold"
+      />
+    </Pressable>
+  );
+}
+
 function PlanDetailChrome(props: { readonly title: string; readonly children: React.ReactNode }) {
   const navigation = useNavigation();
   return (
@@ -325,6 +365,16 @@ export function PlanDetailRouteScreen(props: PlanDetailRouteScreenProps) {
     [graph],
   );
   const nodeViews = useMemo(() => (graph === null ? [] : orderedDagNodeViews(graph)), [graph]);
+  const threadShells = useThreadShells();
+  const linkedThreads = useMemo(
+    () =>
+      linkedPlanThreads(
+        threadShells.filter((shell) => shell.environmentId === environmentId),
+        dagId,
+        graph,
+      ),
+    [dagId, environmentId, graph, threadShells],
+  );
 
   if (presentation === null && catalogReady) {
     return (
@@ -416,6 +466,20 @@ export function PlanDetailRouteScreen(props: PlanDetailRouteScreenProps) {
             ))
           )}
         </SettingsSection>
+        {linkedThreads.length > 0 ? (
+          <SettingsSection title="Threads" card>
+            {linkedThreads.map((entry, index) => (
+              <LinkedThreadRow
+                key={`${entry.thread.environmentId}:${entry.thread.id}`}
+                entry={entry}
+                first={index === 0}
+                onOpenThread={(threadId) =>
+                  navigation.navigate("Thread", { environmentId, threadId })
+                }
+              />
+            ))}
+          </SettingsSection>
+        ) : null}
       </ScrollView>
     </PlanDetailChrome>
   );

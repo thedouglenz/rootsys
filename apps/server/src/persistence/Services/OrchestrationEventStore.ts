@@ -9,12 +9,22 @@
  *
  * @module OrchestrationEventStore
  */
-import { OrchestrationEvent } from "@t3tools/contracts";
+import { OrchestrationAggregateKind, OrchestrationEvent } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 
 import type { OrchestrationEventStoreError } from "../Errors.ts";
+
+export const ReadByAggregateInput = Schema.Struct({
+  aggregateKind: OrchestrationAggregateKind,
+  aggregateId: Schema.String,
+  // Exclusive cursor; absent = from the start of the stream.
+  afterSequence: Schema.optional(Schema.Number),
+  limit: Schema.optional(Schema.Number),
+});
+export type ReadByAggregateInput = typeof ReadByAggregateInput.Type;
 
 /**
  * OrchestrationEventStoreShape - Service API for orchestration event persistence.
@@ -52,6 +62,14 @@ export interface OrchestrationEventStoreShape {
    * @returns Stream containing all stored events.
    */
   readonly readAll: () => Stream.Stream<OrchestrationEvent, OrchestrationEventStoreError>;
+
+  /**
+   * Read one aggregate's events in sequence order, optionally after a cursor
+   * and capped by a limit. Used for per-DAG timelines.
+   */
+  readonly readByAggregate: (
+    input: ReadByAggregateInput,
+  ) => Effect.Effect<ReadonlyArray<OrchestrationEvent>, OrchestrationEventStoreError>;
 }
 
 /**

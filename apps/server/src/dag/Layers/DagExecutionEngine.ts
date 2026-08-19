@@ -137,6 +137,28 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         });
       });
 
+    /**
+     * A finished node's executor thread is done work: settle it so it leaves
+     * the user's active list without a click. No-op on already-settled
+     * threads (decider re-emits silently); skipped while the session is still
+     * starting/running since the decider would reject it.
+     */
+    const settleExecutorThread = (threadId: ThreadId) =>
+      Effect.gen(function* () {
+        const shell = yield* snapshotQuery
+          .getThreadShellById(threadId)
+          .pipe(Effect.orElseSucceed(() => Option.none()));
+        if (Option.isNone(shell)) return;
+        const status = shell.value.session?.status;
+        if (status === "starting" || status === "running") return;
+        if (shell.value.settledAt !== null) return;
+        yield* dispatch({
+          type: "thread.settle",
+          commandId: yield* serverCommandId("settle"),
+          threadId,
+        });
+      });
+
     const readGraph = (dagId: DagId) =>
       snapshotQuery
         .getDagGraph(dagId)
@@ -215,6 +237,7 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
           interactionMode: launch.interactionMode,
           branch: null,
           worktreePath: null,
+          dagLink: { dagId, nodeId: node.nodeId, role: "executor" },
           createdAt,
         });
         // Bind before the turn so the executor's first dag_get already sees
@@ -326,6 +349,12 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
           .pipe(Effect.orElseSucceed(() => Option.none()));
         if (Option.isNone(bound)) return;
         const { dagId, node } = bound.value;
+        // Normal ordering: the executor reported done mid-turn, then the turn
+        // ended. Nothing left for this thread to do.
+        if (DAG_NODE_SATISFIED_STATUSES.has(node.status)) {
+          yield* settleExecutorThread(threadId);
+          return;
+        }
         if (node.status !== "running") return;
         if (session.status === "error") {
           yield* setNodeStatus({
@@ -369,9 +398,21 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
           case "dag.status-set":
             if (event.payload.status === "running") yield* schedule(event.payload.dagId);
             return;
-          case "dag.node-status-set":
+          case "dag.node-status-set": {
+            // Late completion (e.g. the user marks a node done after its
+            // executor already went idle): settle the executor now.
+            const { status, outcome } = event.payload;
+            const threadId = event.payload.threadId ?? outcome?.threadId ?? null;
+            if (
+              DAG_NODE_SATISFIED_STATUSES.has(status) &&
+              threadId !== null &&
+              !runningThreads.has(threadId)
+            ) {
+              yield* settleExecutorThread(threadId);
+            }
             yield* schedule(event.payload.dagId);
             return;
+          }
           case "dag.question-answered":
             yield* handleQuestionAnswered(event);
             return;

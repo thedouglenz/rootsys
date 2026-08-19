@@ -1621,6 +1621,25 @@ function OpenCommandPaletteDialog(props: {
     },
   });
 
+  if (activeThread?.dagLink) {
+    const dagLink = activeThread.dagLink;
+    const dagEnvironmentId = activeThread.environmentId;
+    actionItems.push({
+      kind: "action",
+      value: "action:open-thread-plan",
+      searchTerms: ["plan", "dag", "open plan", "this thread's plan", "node", "graph"],
+      title: "Open this thread's plan",
+      icon: <WorkflowIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        await navigate({
+          to: "/plans/$environmentId/$dagId",
+          params: { environmentId: dagEnvironmentId, dagId: dagLink.dagId },
+          search: dagLink.nodeId === null ? {} : { node: dagLink.nodeId },
+        });
+      },
+    });
+  }
+
   actionItems.push({
     kind: "action",
     value: "action:plans",

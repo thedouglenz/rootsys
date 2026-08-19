@@ -37,6 +37,8 @@ import { useThreadActionMenu } from "~/hooks/useThreadActionMenu";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { DagThreadChip } from "../dag/DagThreadChip";
+import { useThreadShell } from "../../state/entities";
 import {
   WorkspaceBreadcrumb,
   WorkspaceBreadcrumbItem,
@@ -224,6 +226,8 @@ export const ChatHeader = memo(function ChatHeader({
     },
     [commitRename],
   );
+  // rootsys: threads that belong to a plan carry a chip after the title.
+  const dagLink = useThreadShell(isServerThread ? activeThreadRef : null)?.dagLink ?? null;
   return (
     <div
       className="@container/header-actions flex min-w-0 flex-1 items-center gap-2 sm:gap-3"
@@ -309,6 +313,13 @@ export const ChatHeader = memo(function ChatHeader({
               <TooltipPopup side="top">{activeThreadTitle}</TooltipPopup>
             </Tooltip>
           )}
+          {dagLink ? (
+            <DagThreadChip
+              environmentId={activeThreadEnvironmentId}
+              dagLink={dagLink}
+              className="ml-2"
+            />
+          ) : null}
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
       <div

@@ -947,6 +947,12 @@ export const WsOrchestrationSubscribeDagRpc = Rpc.make(ORCHESTRATION_WS_METHODS.
   stream: true,
 });
 
+export const WsOrchestrationGetDagTimelineRpc = Rpc.make(ORCHESTRATION_WS_METHODS.getDagTimeline, {
+  payload: OrchestrationRpcSchemas.getDagTimeline.input,
+  success: OrchestrationRpcSchemas.getDagTimeline.output,
+  error: Schema.Union([OrchestrationGetDagError, EnvironmentAuthorizationError]),
+});
+
 export const WsSubscribeTerminalEventsRpc = Rpc.make(WS_METHODS.subscribeTerminalEvents, {
   payload: Schema.Struct({}),
   success: TerminalEvent,
@@ -1098,4 +1104,5 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationSubscribeThreadRpc,
   WsOrchestrationListDagsRpc,
   WsOrchestrationSubscribeDagRpc,
+  WsOrchestrationGetDagTimelineRpc,
 );

@@ -35,6 +35,7 @@ describe("rightPanelStore", () => {
         },
       }),
     ).toEqual({
+      planAutoOpenedByThreadKey: {},
       byThreadKey: {
         "env-1:thread-A": {
           isOpen: false,
@@ -57,6 +58,7 @@ describe("rightPanelStore", () => {
         },
       }),
     ).toEqual({
+      planAutoOpenedByThreadKey: {},
       byThreadKey: {
         "env-1:thread-A": {
           isOpen: true,
@@ -87,6 +89,7 @@ describe("rightPanelStore", () => {
         },
       }),
     ).toEqual({
+      planAutoOpenedByThreadKey: {},
       byThreadKey: {
         "env-1:thread-A": {
           isOpen: true,
@@ -130,6 +133,7 @@ describe("rightPanelStore", () => {
         },
       }),
     ).toEqual({
+      planAutoOpenedByThreadKey: {},
       byThreadKey: {
         "env-1:thread-A": {
           isOpen: true,
@@ -174,7 +178,7 @@ describe("rightPanelStore", () => {
           "env-1:thread-A": panelState,
         },
       }),
-    ).toEqual({ byThreadKey: { "env-1:thread-A": panelState } });
+    ).toEqual({ planAutoOpenedByThreadKey: {}, byThreadKey: { "env-1:thread-A": panelState } });
   });
 
   it("drops persisted plan surfaces and does not reopen an empty panel", () => {
@@ -197,6 +201,7 @@ describe("rightPanelStore", () => {
         },
       }),
     ).toEqual({
+      planAutoOpenedByThreadKey: {},
       byThreadKey: {
         "env-1:thread-A": {
           isOpen: false,

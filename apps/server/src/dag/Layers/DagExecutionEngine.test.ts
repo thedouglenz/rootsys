@@ -114,6 +114,12 @@ const graphOf = Effect.gen(function* () {
   return Option.getOrThrow(graph);
 });
 
+const threadShellOf = (threadId: ThreadId) =>
+  Effect.gen(function* () {
+    const snapshotQuery = yield* ProjectionSnapshotQuery;
+    return Option.getOrThrow(yield* snapshotQuery.getThreadShellById(threadId));
+  });
+
 const messageText = (event: OrchestrationEvent): string =>
   event.type === "thread.message-sent" ? event.payload.text : "";
 
@@ -196,6 +202,10 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
       expect(turnStarts).toHaveLength(1);
       const created = drained.find((e) => e.type === "thread.created");
       expect(created?.aggregateId).toBe(threadA);
+      // The engine-created executor thread is linked to its node.
+      const shellA = yield* threadShellOf(threadA);
+      expect(shellA.dagLink).toEqual({ dagId, nodeId: nodeA, role: "executor" });
+      expect(shellA.settledAt).toBeNull();
 
       // Executor asks a question → node blocked; engine must not launch B.
       const questionId = DagQuestionId.make("q-1");
@@ -241,7 +251,9 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
       ).toHaveLength(1);
       expect((yield* graphOf).nodes.find((n) => n.nodeId === nodeA)!.status).toBe("running");
 
-      // Executor reports done → B launches on a new thread.
+      // Executor reports done mid-turn → B launches on a new thread, and
+      // once A's turn ends the engine settles thread A.
+      yield* settle(threadA, "running");
       yield* dispatchAll([
         {
           type: "dag.node.status.set",
@@ -253,6 +265,10 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
         },
       ]);
       yield* engine.drain;
+      expect((yield* threadShellOf(threadA)).settledAt).toBeNull();
+      yield* settle(threadA, "idle");
+      yield* engine.drain;
+      expect((yield* threadShellOf(threadA)).settledAt).not.toBeNull();
       graph = yield* graphOf;
       const b = graph.nodes.find((n) => n.nodeId === nodeB)!;
       expect(b.status).toBe("running");

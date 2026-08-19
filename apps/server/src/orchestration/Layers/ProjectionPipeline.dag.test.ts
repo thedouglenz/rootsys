@@ -185,6 +185,108 @@ it.layer(TestLayer)("ProjectionPipeline dags projector", (it) => {
       }),
   );
 
+  it.effect("mirrors node bindings and creation-time links onto thread shells and details", () =>
+    Effect.gen(function* () {
+      const snapshotQuery = yield* ProjectionSnapshotQuery;
+      const linkDagId = DagId.make("dag-link");
+      const executorThreadId = ThreadId.make("thread-executor");
+      const plannerThreadId = ThreadId.make("thread-planner");
+      const modelSelection = {
+        instanceId: ProviderInstanceId.make("codex"),
+        model: "gpt-5-codex",
+      };
+      const linkProjectId = ProjectId.make("project-link");
+
+      yield* dispatchAll([
+        {
+          type: "project.create",
+          commandId: cmd(),
+          projectId: linkProjectId,
+          title: "Project link",
+          workspaceRoot: "/tmp/project-link",
+          defaultModelSelection: modelSelection,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.create",
+          commandId: cmd(),
+          dagId: linkDagId,
+          title: "Plan link",
+          primaryProjectId: linkProjectId,
+          createdAt: NOW,
+        },
+        { type: "dag.node.upsert", commandId: cmd(), dagId: linkDagId, nodeId: nodeA, title: "A" },
+        // A chat thread that later binds itself to a node via the MCP tool.
+        {
+          type: "thread.create",
+          commandId: cmd(),
+          threadId: executorThreadId,
+          projectId: linkProjectId,
+          title: "Chat",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          createdAt: NOW,
+        },
+        // A planner thread tagged at creation.
+        {
+          type: "thread.create",
+          commandId: cmd(),
+          threadId: plannerThreadId,
+          projectId: linkProjectId,
+          title: "Planner",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          dagLink: { dagId: linkDagId, nodeId: null, role: "planner" },
+          createdAt: NOW,
+        },
+      ]);
+
+      expect(
+        Option.map(yield* snapshotQuery.getThreadShellById(executorThreadId), (s) => s.dagLink),
+      ).toEqual(Option.some(null));
+
+      yield* dispatchAll([
+        {
+          type: "dag.node.status.set",
+          commandId: cmd(),
+          dagId: linkDagId,
+          nodeId: nodeA,
+          status: "running",
+          threadId: executorThreadId,
+        },
+      ]);
+
+      const executorLink = { dagId: linkDagId, nodeId: nodeA, role: "executor" };
+      expect(
+        Option.map(yield* snapshotQuery.getThreadShellById(executorThreadId), (s) => s.dagLink),
+      ).toEqual(Option.some(executorLink));
+      expect(
+        Option.map(yield* snapshotQuery.getThreadDetailById(executorThreadId), (t) => t.dagLink),
+      ).toEqual(Option.some(executorLink));
+
+      const plannerLink = { dagId: linkDagId, nodeId: null, role: "planner" };
+      expect(
+        Option.map(yield* snapshotQuery.getThreadShellById(plannerThreadId), (s) => s.dagLink),
+      ).toEqual(Option.some(plannerLink));
+      expect(
+        Option.map(yield* snapshotQuery.getThreadDetailById(plannerThreadId), (t) => t.dagLink),
+      ).toEqual(Option.some(plannerLink));
+
+      // The in-memory command read model agrees with the persisted rows.
+      const readModel = yield* snapshotQuery.getCommandReadModel();
+      expect(readModel.threads.find((t) => t.id === executorThreadId)?.dagLink).toEqual(
+        executorLink,
+      );
+      expect(readModel.threads.find((t) => t.id === plannerThreadId)?.dagLink).toEqual(plannerLink);
+    }),
+  );
+
   it.effect("prefers the active node when several nodes bind the same thread", () =>
     Effect.gen(function* () {
       const snapshotQuery = yield* ProjectionSnapshotQuery;

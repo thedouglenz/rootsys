@@ -74,6 +74,8 @@ import {
 } from "./orchestration/ActivityPayloadProjection.ts";
 import { normalizeDispatchCommand } from "./orchestration/Normalizer.ts";
 import * as OrchestrationEngine from "./orchestration/Services/OrchestrationEngine.ts";
+import { OrchestrationEventStore } from "./persistence/Services/OrchestrationEventStore.ts";
+import { dagTimelineEntriesFromEvents } from "./dag/timeline.ts";
 import * as ProjectionSnapshotQuery from "./orchestration/Services/ProjectionSnapshotQuery.ts";
 import {
   observeRpcEffect as instrumentRpcEffect,
@@ -361,6 +363,7 @@ const makeWsRpcLayer = (
       const crypto = yield* Crypto.Crypto;
       const projectionSnapshotQuery = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;
       const orchestrationEngine = yield* OrchestrationEngine.OrchestrationEngineService;
+      const orchestrationEventStore = yield* OrchestrationEventStore;
       const checkpointDiffQuery = yield* CheckpointDiffQuery.CheckpointDiffQuery;
       const keybindings = yield* Keybindings.Keybindings;
       const externalLauncher = yield* ExternalLauncher.ExternalLauncher;
@@ -910,6 +913,9 @@ const makeWsRpcLayer = (
                 branch: bootstrap.createThread.branch,
                 worktreePath: bootstrap.createThread.worktreePath,
                 createdAt: bootstrap.createThread.createdAt,
+                ...(bootstrap.createThread.dagLink !== undefined
+                  ? { dagLink: bootstrap.createThread.dagLink }
+                  : {}),
               });
               createdThread = true;
             }
@@ -1525,6 +1531,48 @@ const makeWsRpcLayer = (
                 Stream.make({ kind: "snapshot" as const, snapshot: snapshot.value }),
                 liveTail,
               );
+            }),
+            { "rpc.aggregate": "orchestration" },
+          ),
+        [ORCHESTRATION_WS_METHODS.getDagTimeline]: (input) =>
+          observeRpcEffect(
+            ORCHESTRATION_WS_METHODS.getDagTimeline,
+            Effect.gen(function* () {
+              const dag = yield* projectionSnapshotQuery.getDagGraph(input.dagId).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new OrchestrationGetDagError({
+                      message: `Failed to load DAG ${input.dagId}`,
+                      cause,
+                    }),
+                ),
+              );
+              if (Option.isNone(dag)) {
+                return yield* new OrchestrationGetDagError({
+                  message: `DAG ${input.dagId} was not found`,
+                  cause: input.dagId,
+                });
+              }
+              const snapshotSequence = yield* orchestrationEngine.latestSequence;
+              const events = yield* orchestrationEventStore
+                .readByAggregate({
+                  aggregateKind: "dag",
+                  aggregateId: input.dagId,
+                  ...(input.afterSequence !== undefined
+                    ? { afterSequence: input.afterSequence }
+                    : {}),
+                  ...(input.limit !== undefined ? { limit: input.limit } : {}),
+                })
+                .pipe(
+                  Effect.mapError(
+                    (cause) =>
+                      new OrchestrationGetDagError({
+                        message: `Failed to read DAG ${input.dagId} timeline`,
+                        cause,
+                      }),
+                  ),
+                );
+              return { snapshotSequence, entries: dagTimelineEntriesFromEvents(events) };
             }),
             { "rpc.aggregate": "orchestration" },
           ),

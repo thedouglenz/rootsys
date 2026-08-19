@@ -522,8 +522,9 @@ export const ThreadListRow = memo(function ThreadListRow(props: {
     </View>
   ) : null;
 
+  const planLinked = Boolean(thread.dagLink);
   const subtitleRow =
-    subtitleParts.length > 0 || pr !== null ? (
+    subtitleParts.length > 0 || pr !== null || planLinked ? (
       <View className="mt-px flex-row items-center gap-1.5">
         {subtitleParts.length > 0 ? (
           <>
@@ -558,6 +559,15 @@ export const ThreadListRow = memo(function ThreadListRow(props: {
               {pr.label}
             </Text>
           </View>
+        ) : null}
+        {planLinked ? (
+          <SymbolView
+            accessibilityLabel="Linked to a plan"
+            name="point.3.connected.trianglepath.dotted"
+            size={compact ? 13 : 11}
+            tintColor={selected ? selectedForegroundColor : iconSubtleColor}
+            type="monochrome"
+          />
         ) : null}
       </View>
     ) : null;

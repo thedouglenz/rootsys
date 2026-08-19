@@ -178,6 +178,8 @@ import { SidebarContent, SidebarGroup, SidebarMenuButton, useSidebar } from "./u
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { SidebarDagLinkGlyph, SidebarPlanGroupHeader } from "./sidebar/SidebarPlanGroup";
+import { fallbackDagTitle, groupSidebarThreadsByDag } from "./sidebar/dagThreadGrouping";
 import {
   composerDraftHasUserContent,
   DraftId,
@@ -193,6 +195,8 @@ const SETTLED_TAIL_PAGE_COUNT = 25;
 // Keep the v2 key so existing preferences survive the v2-to-default rename.
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar-v2:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar-v2:snoozed-expanded";
+// rootsys: plan groups the user collapsed, keyed `${environmentId}:${dagId}`.
+const PLAN_GROUPS_COLLAPSED_KEY = "t3code:sidebar-v2:plan-groups-collapsed";
 
 function compactSidebarTimeLabel(label: string): string {
   if (label === "just now") return "now";
@@ -1189,6 +1193,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
     </span>
   ) : null;
 
+  const dagLinkGlyph = thread.dagLink ? (
+    <SidebarDagLinkGlyph environmentId={thread.environmentId} dagLink={thread.dagLink} />
+  ) : null;
+
   if (variant === "slim") {
     return (
       <li
@@ -1229,6 +1237,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               />
             </span>
             {title}
+            {dagLinkGlyph}
             {terminalStatusIcon}
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
@@ -1536,6 +1545,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
               ) : (
                 <span className="flex-1" />
               )}
+              {dagLinkGlyph}
               {terminalStatusIcon}
               {prBadge}
               {diff ? (
@@ -2203,6 +2213,21 @@ export default function Sidebar() {
   const toggleSnoozedShelf = useCallback(
     () => setSnoozedShelfExpanded((value) => !value),
     [setSnoozedShelfExpanded],
+  );
+  // rootsys: active threads sharing a plan fold under one header. Groups
+  // default to expanded; collapsing is remembered per plan.
+  const activeThreadItems = useMemo(() => groupSidebarThreadsByDag(activeThreads), [activeThreads]);
+  const [collapsedPlanGroups, setCollapsedPlanGroups] = useLocalStorage(
+    PLAN_GROUPS_COLLAPSED_KEY,
+    [] as ReadonlyArray<string>,
+    Schema.Array(Schema.String),
+  );
+  const togglePlanGroup = useCallback(
+    (key: string) =>
+      setCollapsedPlanGroups((keys) =>
+        keys.includes(key) ? keys.filter((entry) => entry !== key) : [...keys, key],
+      ),
+    [setCollapsedPlanGroups],
   );
   const visibleSnoozedThreads = useMemo(() => {
     if (snoozedShelfExpanded) return snoozedThreads;
@@ -3785,8 +3810,35 @@ export default function Sidebar() {
                       />,
                     );
                   }
-                  for (const thread of activeThreads) {
-                    items.push(renderThreadRow(thread, "active"));
+                  for (const item of activeThreadItems) {
+                    if (item.kind === "thread") {
+                      items.push(renderThreadRow(item.thread, "active"));
+                      continue;
+                    }
+                    const expanded = !collapsedPlanGroups.includes(item.key);
+                    items.push(
+                      <SidebarPlanGroupHeader
+                        key={`plan-group:${item.key}`}
+                        environmentId={item.environmentId}
+                        dagId={item.dagId}
+                        fallbackTitle={fallbackDagTitle(item.threads)}
+                        memberCount={item.threads.length}
+                        expanded={expanded}
+                        onToggle={() => togglePlanGroup(item.key)}
+                      />,
+                    );
+                    for (const thread of item.threads) {
+                      // A collapsed group still shows the open thread, like
+                      // the settled shelf does, so the active row never hides.
+                      if (
+                        !expanded &&
+                        scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)) !==
+                          routeThreadKey
+                      ) {
+                        continue;
+                      }
+                      items.push(renderThreadRow(thread, "active"));
+                    }
                   }
                   // Snoozed shelf: between the inbox and Settled — out of the
                   // way, never gone. The header always renders while anything

@@ -26,6 +26,7 @@ import {
 } from "../Errors.ts";
 import {
   OrchestrationEventStore,
+  ReadByAggregateInput,
   type OrchestrationEventStoreShape,
 } from "../Services/OrchestrationEventStore.ts";
 
@@ -66,6 +67,7 @@ const ReadFromSequenceRequestSchema = Schema.Struct({
   limit: Schema.Number,
 });
 const DEFAULT_READ_FROM_SEQUENCE_LIMIT = 1_000;
+const DEFAULT_READ_BY_AGGREGATE_LIMIT = 5_000;
 const READ_PAGE_SIZE = 500;
 
 function inferActorKind(
@@ -182,6 +184,32 @@ const makeEventStore = Effect.gen(function* () {
       `,
   });
 
+  const readEventRowsByAggregate = SqlSchema.findAll({
+    Request: ReadByAggregateInput,
+    Result: OrchestrationEventPersistedRowSchema,
+    execute: (request) =>
+      sql`
+        SELECT
+          sequence,
+          event_id AS "eventId",
+          event_type AS "type",
+          aggregate_kind AS "aggregateKind",
+          stream_id AS "aggregateId",
+          occurred_at AS "occurredAt",
+          command_id AS "commandId",
+          causation_event_id AS "causationEventId",
+          correlation_id AS "correlationId",
+          payload_json AS "payload",
+          metadata_json AS "metadata"
+        FROM orchestration_events
+        WHERE aggregate_kind = ${request.aggregateKind}
+          AND stream_id = ${request.aggregateId}
+          AND sequence > ${request.afterSequence ?? 0}
+        ORDER BY sequence ASC
+        LIMIT ${Math.max(0, Math.floor(request.limit ?? DEFAULT_READ_BY_AGGREGATE_LIMIT))}
+      `,
+  });
+
   const append: OrchestrationEventStoreShape["append"] = (event) =>
     appendEventRow({
       eventId: event.eventId,
@@ -261,10 +289,30 @@ const makeEventStore = Effect.gen(function* () {
     return readPage(sequenceExclusive, normalizedLimit);
   };
 
+  const readByAggregate: OrchestrationEventStoreShape["readByAggregate"] = (input) =>
+    readEventRowsByAggregate(input).pipe(
+      Effect.mapError(
+        toPersistenceSqlOrDecodeError(
+          "OrchestrationEventStore.readByAggregate:query",
+          "OrchestrationEventStore.readByAggregate:decodeRows",
+        ),
+      ),
+      Effect.flatMap((rows) =>
+        Effect.forEach(rows, (row) =>
+          decodeEvent(row).pipe(
+            Effect.mapError(
+              toPersistenceDecodeError("OrchestrationEventStore.readByAggregate:rowToEvent"),
+            ),
+          ),
+        ),
+      ),
+    );
+
   return {
     append,
     readFromSequence,
     readAll: () => readFromSequence(0, Number.MAX_SAFE_INTEGER),
+    readByAggregate,
   } satisfies OrchestrationEventStoreShape;
 });
 

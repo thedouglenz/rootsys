@@ -41,6 +41,9 @@ import {
   OrchestrationListDagsInput,
   OrchestrationListDagsResult,
   OrchestrationSubscribeDagInput,
+  OrchestrationGetDagTimelineInput,
+  OrchestrationGetDagTimelineResult,
+  ThreadDagLink,
 } from "./dag.ts";
 
 export const ORCHESTRATION_WS_METHODS = {
@@ -54,6 +57,7 @@ export const ORCHESTRATION_WS_METHODS = {
   subscribeThread: "orchestration.subscribeThread",
   listDags: "orchestration.listDags",
   subscribeDag: "orchestration.subscribeDag",
+  getDagTimeline: "orchestration.getDagTimeline",
 } as const;
 
 export const ProviderApprovalPolicy = Schema.Literals([
@@ -369,6 +373,9 @@ export const OrchestrationThread = Schema.Struct({
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   // Pending-only state. Optional so older servers remain compatible.
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
+  // rootsys: the DAG this thread belongs to (executor of a node, planner, or
+  // companion). Optional so pre-DAG payloads decode; absent/null = no link.
+  dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
   deletedAt: Schema.NullOr(IsoDateTime),
   messages: Schema.Array(OrchestrationMessage),
   proposedPlans: Schema.Array(OrchestrationProposedPlan).pipe(
@@ -431,6 +438,7 @@ export const OrchestrationThreadShell = Schema.Struct({
   pinnedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
+  dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
   session: Schema.NullOr(OrchestrationSession),
   latestUserMessageAt: Schema.NullOr(IsoDateTime),
   hasPendingApprovals: Schema.Boolean,
@@ -639,6 +647,8 @@ const ThreadCreateCommand = Schema.Struct({
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  // rootsys: tag planner/companion/executor threads with their DAG at creation.
+  dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
   createdAt: IsoDateTime,
 });
 
@@ -767,6 +777,8 @@ const ThreadTurnStartBootstrapCreateThread = Schema.Struct({
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   createdAt: IsoDateTime,
+  // rootsys: planner/companion threads created from the Plans surface.
+  dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
 });
 
 const ThreadTurnStartBootstrapPrepareWorktree = Schema.Struct({
@@ -1098,6 +1110,7 @@ export const ThreadCreatedPayload = Schema.Struct({
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+  dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -1738,6 +1751,10 @@ export const OrchestrationRpcSchemas = {
   subscribeDag: {
     input: OrchestrationSubscribeDagInput,
     output: OrchestrationDagStreamItem,
+  },
+  getDagTimeline: {
+    input: OrchestrationGetDagTimelineInput,
+    output: OrchestrationGetDagTimelineResult,
   },
 } as const;
 

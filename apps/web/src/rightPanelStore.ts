@@ -22,6 +22,7 @@ export const RIGHT_PANEL_KINDS = [
   "terminal",
   "pull-request",
   "agents",
+  "plan",
 ] as const;
 export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
 
@@ -62,13 +63,17 @@ export type RightPanelSurface =
       repository: string;
       number: number;
     }
-  | { id: "agents"; kind: "agents" };
+  | { id: "agents"; kind: "agents" }
+  /** rootsys: the DAG this thread belongs to, beside the transcript. */
+  | { id: "plan"; kind: "plan" };
 
 const RIGHT_PANEL_STORAGE_KEY = "t3code:right-panel-state:v2";
 // v9 removed the "plan" surface kind (plans render inline in the transcript).
 // v10 keys pull-request surfaces by reference instead of a singleton tab.
 // v11 stops persisting the pull-request list's shared panel, so a restart opens the page fresh.
-const RIGHT_PANEL_STORAGE_VERSION = 11;
+// v12 (rootsys) reintroduces a "plan" singleton surface (the thread's DAG) and records which
+// threads already had it auto-opened so closing it sticks.
+const RIGHT_PANEL_STORAGE_VERSION = 12;
 
 /**
  * The pull-request list's shared panel (see PULL_REQUESTS_PANEL_ID in the route) is session
@@ -84,6 +89,12 @@ export interface ThreadRightPanelState {
 
 interface RightPanelStoreState {
   byThreadKey: Record<string, ThreadRightPanelState>;
+  /**
+   * Threads whose Plan surface was opened automatically once. Auto-open never
+   * repeats for a listed thread, so closing the surface is a sticky choice.
+   */
+  planAutoOpenedByThreadKey: Record<string, true>;
+  markPlanAutoOpened: (ref: ScopedThreadRef) => void;
   open: (
     ref: ScopedThreadRef,
     kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
@@ -136,6 +147,8 @@ const singletonSurface = (
       return { id: "files", kind };
     case "agents":
       return { id: "agents", kind };
+    case "plan":
+      return { id: "plan", kind };
   }
 };
 
@@ -247,10 +260,19 @@ function normalizeRevealLine(line: number | undefined): number | null {
 
 export function migratePersistedRightPanelState(persistedState: unknown): {
   byThreadKey: Record<string, ThreadRightPanelState>;
+  planAutoOpenedByThreadKey: Record<string, true>;
 } {
   if (!persistedState || typeof persistedState !== "object") {
-    return { byThreadKey: {} };
+    return { byThreadKey: {}, planAutoOpenedByThreadKey: {} };
   }
+  const planAutoOpenedByThreadKey: Record<string, true> =
+    "planAutoOpenedByThreadKey" in persistedState &&
+    persistedState.planAutoOpenedByThreadKey &&
+    typeof persistedState.planAutoOpenedByThreadKey === "object"
+      ? Object.fromEntries(
+          Object.keys(persistedState.planAutoOpenedByThreadKey).map((key) => [key, true] as const),
+        )
+      : {};
   const byThreadKey =
     "byThreadKey" in persistedState &&
     persistedState.byThreadKey &&
@@ -357,13 +379,22 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
             }),
         )
       : {};
-  return { byThreadKey };
+  return { byThreadKey, planAutoOpenedByThreadKey };
 }
 
 export const useRightPanelStore = create<RightPanelStoreState>()(
   persist(
     (set) => ({
       byThreadKey: {},
+      planAutoOpenedByThreadKey: {},
+      markPlanAutoOpened: (ref) =>
+        set((state) => {
+          const threadKey = scopedThreadKey(ref);
+          if (state.planAutoOpenedByThreadKey[threadKey]) return state;
+          return {
+            planAutoOpenedByThreadKey: { ...state.planAutoOpenedByThreadKey, [threadKey]: true },
+          };
+        }),
       open: (ref, kind) =>
         set((state) => ({
           byThreadKey: updateThread(state.byThreadKey, scopedThreadKey(ref), (current) => {
@@ -664,6 +695,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             ([threadKey]) => !isPullRequestsPanelKey(threadKey),
           ),
         ),
+        planAutoOpenedByThreadKey: state.planAutoOpenedByThreadKey,
       }),
       migrate: migratePersistedRightPanelState,
     },

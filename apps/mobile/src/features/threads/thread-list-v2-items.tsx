@@ -778,6 +778,15 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
             #{pr.label}
           </Text>
         ) : null}
+        {thread.dagLink ? (
+          <SymbolView
+            accessibilityLabel="Linked to a plan"
+            name="point.3.connected.trianglepath.dotted"
+            size={12}
+            tintColor={pinTintColor}
+            type="monochrome"
+          />
+        ) : null}
         {props.providerDriver ? (
           <View className="opacity-60">
             <ProviderIcon provider={props.providerDriver} size={14} />

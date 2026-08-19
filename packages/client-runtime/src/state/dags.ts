@@ -94,6 +94,12 @@ export function createEnvironmentDagAtoms<R, ER>(
     staleTimeMs: 5_000,
     idleTtlMs: 60_000,
   });
+  const timeline = createEnvironmentRpcQueryAtomFamily(runtime, {
+    label: "environment-data:dag:timeline",
+    tag: ORCHESTRATION_WS_METHODS.getDagTimeline,
+    staleTimeMs: 5_000,
+    idleTtlMs: 60_000,
+  });
   const graphFamily = Atom.family((key: string) => {
     const [environmentId, dagId] = key.split(DAG_KEY_SEPARATOR) as [EnvironmentId, DagId];
     return Atom.make((get): EnvironmentDagState => {
@@ -108,6 +114,8 @@ export function createEnvironmentDagAtoms<R, ER>(
     graphAtom: (target: { readonly environmentId: EnvironmentId; readonly dagId: DagId }) =>
       graphFamily(`${target.environmentId}${DAG_KEY_SEPARATOR}${target.dagId}`),
     listAtom: list,
+    /** Run log (`orchestration.getDagTimeline`); re-query by changing the input key. */
+    timelineAtom: timeline,
   };
 }
 

@@ -55,6 +55,30 @@ Run is unavailable until the plan has at least one node, a project, and a model 
 with. **Pause** stops new nodes from starting; in-flight work finishes. **Resume**
 continues.
 
+## Threads that belong to a plan
+
+Every thread a plan starts — the planner, a companion, and each node's executor —
+knows which plan it belongs to:
+
+- The thread header shows a **Plan ▸ …** chip naming the node (or _planner_ /
+  _companion_). Click it to open the plan with that node selected. The command
+  palette offers **Open this thread's plan** while such a thread is open.
+- In the sidebar, linked threads carry a small plan glyph tinted by the node's
+  status, and threads of one plan sit together under a collapsible **Plan: …** header
+  with the plan's progress. Click the header title to open the plan; the chevron
+  collapses or expands the group. Pinned threads stay in the pinned block.
+- The right panel gains a **Plan** surface: the plan's nodes in dependency order with
+  the current node highlighted, open questions at the top, and a **Canvas** toggle for
+  the graph. It opens by itself the first time you visit a linked thread; close it or
+  pick another surface and that choice sticks for the thread.
+
+## Run log
+
+**Run log**, under the canvas, lists what happened to the plan newest-first: status
+changes, node edits, questions and answers, and who caused each one (you, an agent, or
+the app). Rows that belong to a thread link to it. The log follows the plan live while
+it is open.
+
 ## Answer questions
 
 When an executing agent needs you, it asks a question and its node turns blocked. Open

@@ -39,7 +39,7 @@ DAG status is `draft | ready | running | paused | completed | failed | archived`
 | In-memory projector (`dags` slice)                                    | `apps/server/src/orchestration/dag/projector.ts`                                                                                                           |
 | Persisted projection (`projection_dags`, whole-graph JSON per DAG)    | `apps/server/src/persistence/{Services,Layers}/ProjectionDags.ts`, `Migrations/041_ProjectionDags.ts`, `projection.dags` in `Layers/ProjectionPipeline.ts` |
 | Reads (`getDagGraph`, `listDagShells`, `findDagNodeByThreadId`)       | `apps/server/src/orchestration/Layers/ProjectionSnapshotQuery.ts`                                                                                          |
-| RPC (`orchestration.listDags`, `orchestration.subscribeDag`)          | `apps/server/src/ws.ts`                                                                                                                                    |
+| RPC (`orchestration.listDags`, `subscribeDag`, `getDagTimeline`)      | `apps/server/src/ws.ts`; timeline mapping in `apps/server/src/dag/timeline.ts`                                                                             |
 | Agent tool surface (`dag_*` MCP toolkit)                              | `apps/server/src/mcp/toolkits/dag/`                                                                                                                        |
 | Web canvas + companion editor                                         | `apps/web/src/components/dag/` (slice 4)                                                                                                                   |
 | Execution engine + strategies                                         | `apps/server/src/dag/` (slice 5)                                                                                                                           |
@@ -59,6 +59,32 @@ drift from the in-memory model.
 
 Clients subscribe with `orchestration.subscribeDag` (snapshot, optional
 catch-up by sequence, then raw `dag.*` events), mirroring `subscribeThread`.
+
+## Thread ↔ DAG link
+
+Every thread shell and detail carries an optional `dagLink`
+(`{ dagId, nodeId, role }`, `packages/contracts/src/dag.ts#ThreadDagLink`) so
+clients can show "this thread belongs to DAG X" without a reverse lookup.
+It is set one of two ways:
+
+- **At creation** — `thread.create` accepts `dagLink`; the decider copies it
+  into `thread.created`. Planner (`role: "planner"`, `nodeId: null`) and
+  companion (`role: "companion"`) threads are tagged this way by the client's
+  bootstrap, and the execution engine tags the threads it creates with
+  `role: "executor"` and the node id.
+- **Derived for executors** — a `dag.node-status-set` event that names a
+  `threadId` is a node binding; both projectors (in-memory
+  `orchestration/dag/projector.ts`, persisted `projection_threads.dag_link_json`
+  in `ProjectionPipeline.ts`) set that thread's `dagLink` to
+  `{ dagId, nodeId, role: "executor" }` when the thread exists. This covers a
+  chat thread whose agent bound itself to a node with `dag_set_node_status`.
+
+`orchestration.getDagTimeline` (`{ dagId, afterSequence?, limit? }`) returns
+the DAG's run log: `OrchestrationEventStore.readByAggregate` reads the `dag`
+stream and `dagTimelineEntriesFromEvents` flattens each event into a
+`DagTimelineEntry` with an actor inferred from the command id prefix
+(`mcp:` → agent, `server:dag-` → engine, other `server:`/`provider:` → server,
+else user).
 
 ## Agent tool surface
 
@@ -107,6 +133,10 @@ project.defaultModelSelection`. If none resolves (or the provider instance is
   (`idle/ready/interrupted/stopped`, after having been seen `running`) while the
   node is still `running`, the engine sends one nudge turn; a second silent
   settle marks the node `failed`. A session `error` fails the node at once.
+- Auto-settle: once a node is `done`/`skipped` and its executor thread's
+  session has settled, the engine dispatches `thread.settle` so the thread
+  leaves the active list (either ordering: report-then-idle, or a late mark
+  after the session already went idle).
 - Questions: `dag_ask_user` blocks the node (decider). On
   `dag.question-answered` the decider unblocks the node when no other question
   on it is open, and the engine sends the answer as a new turn on the asking

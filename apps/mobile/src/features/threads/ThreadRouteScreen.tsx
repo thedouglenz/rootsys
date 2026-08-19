@@ -5,7 +5,16 @@ import {
   useNavigation,
   type StaticScreenProps,
 } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { HeaderHeightContext } from "@react-navigation/elements";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import * as Option from "effect/Option";
 import { EnvironmentId, ThreadId, type ProjectScript } from "@t3tools/contracts";
 import {
@@ -26,6 +35,7 @@ import {
   type AndroidHeaderAction,
 } from "../../components/AndroidScreenHeader";
 import { LoadingScreen } from "../../components/LoadingScreen";
+import { IOS_NAV_BAR_HEIGHT } from "../../lib/layoutMetrics";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { connectionTone } from "../connection/connectionTone";
@@ -50,6 +60,7 @@ import {
 } from "../terminal/terminalLaunchContext";
 import { terminalDebugLog } from "../terminal/terminalDebugLog";
 import { ThreadDetailScreen } from "./ThreadDetailScreen";
+import { ThreadPlanChip } from "./thread-plan-chip";
 import {
   ThreadGitControls,
   useThreadGitCenterHeaderItems,
@@ -422,6 +433,14 @@ function ThreadRouteContent(
   // panes bring their own nested native headers (which underlap the status
   // bar); elsewhere the pane content pads itself below the top inset.
   const safeAreaInsets = useSafeAreaInsets();
+  // Plan chip offset: only the iOS glass header underlaps the content (the
+  // feed gets its header inset from UIKit); Android's header is in-flow and
+  // non-glass iOS lays content out below the bar.
+  const navigationHeaderHeight = useContext(HeaderHeightContext);
+  const planChipTopInset =
+    Platform.OS === "ios" && usesNativeHeaderGlass
+      ? navigationHeaderHeight || safeAreaInsets.top + IOS_NAV_BAR_HEIGHT
+      : 0;
   const inspectorHeaderInset = Platform.OS === "ios" ? 0 : safeAreaInsets.top;
   const GitInspector = useCallback(
     () => (
@@ -808,6 +827,13 @@ function ThreadRouteContent(
           onChangeUserInputCustomAnswer={requests.onChangeUserInputCustomAnswer}
           onSubmitUserInput={requests.onSubmitUserInput}
         />
+        {selectedThread.dagLink ? (
+          <ThreadPlanChip
+            environmentId={selectedThread.environmentId}
+            link={selectedThread.dagLink}
+            topInset={planChipTopInset}
+          />
+        ) : null}
       </View>
     </>
   );

@@ -113,6 +113,7 @@ describe("OrchestrationEngine", () => {
             detail: "historical replay should not be used during bootstrap",
           }),
         ),
+      readByAggregate: () => Effect.succeed([]),
     };
 
     const projectionSnapshot = {
@@ -816,6 +817,13 @@ describe("OrchestrationEngine", () => {
       readAll() {
         return Stream.fromIterable(events);
       },
+      readByAggregate({ aggregateKind, aggregateId }) {
+        return Effect.succeed(
+          events.filter(
+            (event) => event.aggregateKind === aggregateKind && event.aggregateId === aggregateId,
+          ),
+        );
+      },
     };
 
     const ServerConfigLayer = ServerConfig.layerTest(process.cwd(), {
@@ -1051,6 +1059,13 @@ describe("OrchestrationEngine", () => {
       },
       readAll() {
         return Stream.fromIterable(events);
+      },
+      readByAggregate({ aggregateKind, aggregateId }) {
+        return Effect.succeed(
+          events.filter(
+            (event) => event.aggregateKind === aggregateKind && event.aggregateId === aggregateId,
+          ),
+        );
       },
     };
 

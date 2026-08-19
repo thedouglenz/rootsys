@@ -1,4 +1,4 @@
-import { CommandId, EventId, ProjectId } from "@t3tools/contracts";
+import { CommandId, DagId, EventId, ProjectId } from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -66,6 +66,73 @@ layer("OrchestrationEventStore", (it) => {
       assert.equal(replayed.length, 1);
       assert.equal(replayed[0]?.type, "project.created");
       assert.equal(replayed[0]?.metadata.adapterKey, "codex");
+    }),
+  );
+
+  it.effect("readByAggregate returns one stream's events after a cursor, capped by limit", () =>
+    Effect.gen(function* () {
+      const eventStore = yield* OrchestrationEventStore;
+      const now = "2026-01-01T00:00:00.000Z";
+      const dagId = DagId.make("dag-by-aggregate");
+      const otherDagId = DagId.make("dag-other");
+
+      const appendDagCreated = (id: DagId, suffix: string) =>
+        eventStore.append({
+          type: "dag.created",
+          eventId: EventId.make(`evt-dag-${suffix}`),
+          aggregateKind: "dag",
+          aggregateId: id,
+          occurredAt: now,
+          commandId: CommandId.make(`cmd-dag-${suffix}`),
+          causationEventId: null,
+          correlationId: null,
+          metadata: {},
+          payload: {
+            dagId: id,
+            title: `Plan ${suffix}`,
+            description: "",
+            primaryProjectId: null,
+            defaultModelSelection: null,
+            createdAt: now,
+          },
+        });
+      const appendStatus = (id: DagId, suffix: string) =>
+        eventStore.append({
+          type: "dag.status-set",
+          eventId: EventId.make(`evt-status-${suffix}`),
+          aggregateKind: "dag",
+          aggregateId: id,
+          occurredAt: now,
+          commandId: CommandId.make(`cmd-status-${suffix}`),
+          causationEventId: null,
+          correlationId: null,
+          metadata: {},
+          payload: { dagId: id, status: "running", updatedAt: now },
+        });
+
+      const first = yield* appendDagCreated(dagId, "a");
+      yield* appendDagCreated(otherDagId, "b");
+      yield* appendStatus(dagId, "a1");
+      yield* appendStatus(otherDagId, "b1");
+      yield* appendStatus(dagId, "a2");
+
+      const all = yield* eventStore.readByAggregate({ aggregateKind: "dag", aggregateId: dagId });
+      assert.deepStrictEqual(
+        all.map((event) => event.eventId),
+        ["evt-dag-a", "evt-status-a1", "evt-status-a2"],
+      );
+      assert.ok(all.every((event) => event.aggregateId === dagId));
+
+      const afterFirst = yield* eventStore.readByAggregate({
+        aggregateKind: "dag",
+        aggregateId: dagId,
+        afterSequence: first.sequence,
+        limit: 1,
+      });
+      assert.deepStrictEqual(
+        afterFirst.map((event) => event.eventId),
+        ["evt-status-a1"],
+      );
     }),
   );
 

@@ -6,6 +6,7 @@ import {
   type EnvironmentId,
   type ModelSelection,
   type ProjectId,
+  type ThreadDagRole,
 } from "@t3tools/contracts";
 import { buildDagCompanionBrief, buildDagPlannerBrief } from "@t3tools/shared/dagPrompts";
 import { useNavigate } from "@tanstack/react-router";
@@ -23,6 +24,8 @@ interface KickoffInput {
   readonly modelSelection: ModelSelection;
   readonly title: string;
   readonly text: string;
+  readonly dagId: DagId;
+  readonly role: Extract<ThreadDagRole, "planner" | "companion">;
 }
 
 /**
@@ -61,6 +64,7 @@ export function useDagThreadKickoff() {
               interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
               branch: null,
               worktreePath: null,
+              dagLink: { dagId: input.dagId, nodeId: null, role: input.role },
               createdAt,
             },
           },
@@ -96,6 +100,8 @@ export function useDagThreadKickoff() {
         projectId: input.projectId,
         modelSelection: input.modelSelection,
         title: `Plan: ${input.dagTitle}`,
+        dagId: input.dagId,
+        role: "planner",
         text: buildDagPlannerBrief({
           dagId: input.dagId,
           goal: input.goal,
@@ -119,6 +125,8 @@ export function useDagThreadKickoff() {
         projectId: input.projectId,
         modelSelection: input.modelSelection,
         title: `Companion: ${input.dagTitle}`,
+        dagId: input.dagId,
+        role: "companion",
         text: buildDagCompanionBrief({ dagId: input.dagId, dagTitle: input.dagTitle }),
       }),
     [kickoff],

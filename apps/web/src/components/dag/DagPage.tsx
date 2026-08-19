@@ -1,6 +1,6 @@
 import type { DagId, DagNodeId, EnvironmentId } from "@t3tools/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
 import { isElectron } from "../../env";
 import { cn } from "../../lib/utils";
@@ -22,6 +22,7 @@ import { DagHeader } from "./DagHeader";
 import { mintDagNodeId } from "./dagModel";
 import { DagNodePanel } from "./DagNodePanel";
 import { DagQuestionInbox } from "./DagQuestionInbox";
+import { DagTimeline } from "./DagTimeline";
 import { useDagDispatch } from "./useDagDispatch";
 
 // React Flow and dagre only load when a canvas is actually opened.
@@ -67,7 +68,16 @@ function CenteredState({ children }: { children: React.ReactNode }) {
   return <div className="flex min-h-0 flex-1 items-center justify-center p-6">{children}</div>;
 }
 
-export function DagPage({ environmentId, dagId }: { environmentId: EnvironmentId; dagId: DagId }) {
+export function DagPage({
+  environmentId,
+  dagId,
+  initialNodeId = null,
+}: {
+  environmentId: EnvironmentId;
+  dagId: DagId;
+  /** Node to open in the side panel on arrival (`?node=` on the route). */
+  initialNodeId?: DagNodeId | null;
+}) {
   const navigate = useNavigate();
   const { isReady: catalogReady, presentation: environment } =
     useEnvironmentPresentation(environmentId);
@@ -81,7 +91,10 @@ export function DagPage({ environmentId, dagId }: { environmentId: EnvironmentId
     () => allProjects.filter((project) => project.environmentId === environmentId),
     [allProjects, environmentId],
   );
-  const [selectedNodeId, setSelectedNodeId] = useState<DagNodeId | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<DagNodeId | null>(initialNodeId);
+  useEffect(() => {
+    if (initialNodeId !== null) setSelectedNodeId(initialNodeId);
+  }, [initialNodeId]);
   const graph = state?.graph ?? null;
   const selectedNode = useMemo(
     () => graph?.nodes.find((node) => node.nodeId === selectedNodeId) ?? null,
@@ -193,6 +206,11 @@ export function DagPage({ environmentId, dagId }: { environmentId: EnvironmentId
             </Suspense>
           </div>
           <DagQuestionInbox graph={graph} dispatch={dispatch} />
+          <DagTimeline
+            environmentId={environmentId}
+            graph={graph}
+            snapshotSequence={state?.snapshotSequence ?? 0}
+          />
         </div>
         {selectedNode ? (
           <DagNodePanel

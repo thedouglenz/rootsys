@@ -575,6 +575,22 @@ export function dagShellFromGraph(graph: DagGraph): DagShell {
   };
 }
 
+/**
+ * How a thread relates to a DAG. Executors are bound to a node; planner and
+ * companion threads belong to the DAG as a whole. Carried on the thread shell
+ * so every client surface (sidebar, header, side panel) can see it without a
+ * reverse lookup.
+ */
+export const ThreadDagRole = Schema.Literals(["executor", "planner", "companion"]);
+export type ThreadDagRole = typeof ThreadDagRole.Type;
+
+export const ThreadDagLink = Schema.Struct({
+  dagId: DagId,
+  nodeId: Schema.NullOr(DagNodeId),
+  role: ThreadDagRole,
+});
+export type ThreadDagLink = typeof ThreadDagLink.Type;
+
 // ---------------------------------------------------------------------------
 // RPC input/output
 // ---------------------------------------------------------------------------
@@ -605,6 +621,54 @@ export const OrchestrationDagSnapshot = Schema.Struct({
   graph: DagGraph,
 });
 export type OrchestrationDagSnapshot = typeof OrchestrationDagSnapshot.Type;
+
+/** Who caused a timeline entry, inferred from the command id prefix. */
+export const DagTimelineActor = Schema.Literals(["user", "agent", "engine", "server"]);
+export type DagTimelineActor = typeof DagTimelineActor.Type;
+
+/**
+ * One row of a DAG's run log, derived from its events. Kept flat and
+ * presentational so clients render it without re-deriving from the event
+ * store.
+ */
+export const DagTimelineEntry = Schema.Struct({
+  sequence: NonNegativeInt,
+  occurredAt: IsoDateTime,
+  kind: Schema.Literals([
+    "dag-created",
+    "dag-status",
+    "node-status",
+    "node-upserted",
+    "node-deleted",
+    "edge-added",
+    "edge-removed",
+    "question-asked",
+    "question-answered",
+  ]),
+  actor: DagTimelineActor,
+  nodeId: Schema.NullOr(DagNodeId),
+  // Node or DAG status for status entries; question status for answers.
+  status: Schema.NullOr(TrimmedNonEmptyString),
+  threadId: Schema.NullOr(ThreadId),
+  questionId: Schema.NullOr(DagQuestionId),
+  // Short free text: outcome summary, question prompt/answer, node title.
+  detail: Schema.NullOr(TrimmedString),
+});
+export type DagTimelineEntry = typeof DagTimelineEntry.Type;
+
+export const OrchestrationGetDagTimelineInput = Schema.Struct({
+  dagId: DagId,
+  // Absent = everything.
+  afterSequence: Schema.optionalKey(NonNegativeInt),
+  limit: Schema.optionalKey(NonNegativeInt),
+});
+export type OrchestrationGetDagTimelineInput = typeof OrchestrationGetDagTimelineInput.Type;
+
+export const OrchestrationGetDagTimelineResult = Schema.Struct({
+  snapshotSequence: NonNegativeInt,
+  entries: Schema.Array(DagTimelineEntry),
+});
+export type OrchestrationGetDagTimelineResult = typeof OrchestrationGetDagTimelineResult.Type;
 
 export class OrchestrationGetDagError extends Schema.TaggedErrorClass<OrchestrationGetDagError>()(
   "OrchestrationGetDagError",

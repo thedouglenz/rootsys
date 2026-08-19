@@ -630,6 +630,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             pinOrderKey: null,
             titleRegenerationRequestId: null,
             titleRegenerationStartedAt: null,
+            dagLink: event.payload.dagLink ?? null,
             latestUserMessageAt: null,
             pendingApprovalCount: 0,
             pendingUserInputCount: 0,
@@ -637,6 +638,28 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             deletedAt: null,
           });
           return;
+
+        // rootsys: a node binding names its executor thread; mirror it onto
+        // the thread row so shells carry the link without a reverse lookup.
+        case "dag.node-status-set": {
+          const threadId = event.payload.threadId;
+          if (!threadId) {
+            return;
+          }
+          const existingRow = yield* projectionThreadRepository.getById({ threadId });
+          if (Option.isNone(existingRow)) {
+            return;
+          }
+          yield* projectionThreadRepository.upsert({
+            ...existingRow.value,
+            dagLink: {
+              dagId: event.payload.dagId,
+              nodeId: event.payload.nodeId,
+              role: "executor",
+            },
+          });
+          return;
+        }
 
         case "thread.archived": {
           const existingRow = yield* projectionThreadRepository.getById({

@@ -155,6 +155,7 @@ import {
 } from "./ui/number-field";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { SidebarDagLinkGlyph } from "./sidebar/SidebarPlanGroup";
 import {
   SidebarContent,
   SidebarGroup,
@@ -765,6 +766,9 @@ export const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThr
             </Tooltip>
           )}
           <ThreadWorktreeIndicator thread={thread} />
+          {thread.dagLink ? (
+            <SidebarDagLinkGlyph environmentId={thread.environmentId} dagLink={thread.dagLink} />
+          ) : null}
           {terminalStatus && (
             <Tooltip>
               <TooltipTrigger
