@@ -1,6 +1,7 @@
 import {
   ChatAttachment,
   CheckpointRef,
+  dagShellFromGraph,
   IsoDateTime,
   MessageId,
   NonNegativeInt,
@@ -13,7 +14,9 @@ import {
   OrchestrationThreadDetailSnapshot,
   ProjectScript,
   TurnId,
+  type DagGraph,
   type OrchestrationCheckpointSummary,
+  type OrchestrationDagSnapshot,
   type OrchestrationLatestTurn,
   type OrchestrationMessage,
   type OrchestrationProjectShell,
@@ -43,6 +46,8 @@ import {
   type ProjectionRepositoryError,
 } from "../../persistence/Errors.ts";
 import { ProjectionCheckpoint } from "../../persistence/Services/ProjectionCheckpoints.ts";
+import { ProjectionDagRepository } from "../../persistence/Services/ProjectionDags.ts";
+import { ProjectionDagRepositoryLive } from "../../persistence/Layers/ProjectionDags.ts";
 import { ThreadBackgroundLivenessService } from "../ThreadBackgroundLiveness.ts";
 import { ThreadPlanProgressService } from "../ThreadPlanProgress.ts";
 import { ProjectionProject } from "../../persistence/Services/ProjectionProjects.ts";
@@ -60,6 +65,7 @@ import * as RepositoryIdentityResolver from "../../project/RepositoryIdentityRes
 import { ORCHESTRATION_PROJECTOR_NAMES } from "./ProjectionPipeline.ts";
 import {
   ProjectionSnapshotQuery,
+  type ProjectionDagNodeBinding,
   type ProjectionFullThreadDiffContext,
   type ProjectionSnapshotCounts,
   type ProjectionThreadCheckpointContext,
@@ -353,6 +359,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
   const threadBackgroundLiveness = yield* ThreadBackgroundLivenessService;
   const threadPlanProgress = yield* ThreadPlanProgressService;
   const sql = yield* SqlClient.SqlClient;
+  const projectionDagRepository = yield* ProjectionDagRepository;
   const repositoryIdentityResolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
   const repositoryIdentityResolutionConcurrency = 4;
   const resolveRepositoryIdentitiesForProjects = Effect.fn(
@@ -1787,11 +1794,20 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
               ),
             ),
           ),
+          projectionDagRepository.listAll(),
         ]),
       )
       .pipe(
         Effect.flatMap(
-          ([projectRows, threadRows, proposedPlanRows, sessionRows, latestTurnRows, stateRows]) =>
+          ([
+            projectRows,
+            threadRows,
+            proposedPlanRows,
+            sessionRows,
+            latestTurnRows,
+            stateRows,
+            dagRows,
+          ]) =>
             Effect.sync(() => {
               let updatedAt: string | null = null;
               const projects: OrchestrationProject[] = [];
@@ -1925,6 +1941,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 snapshotSequence: computeSnapshotSequence(stateRows),
                 projects,
                 threads,
+                dags: dagRows.map((row) => row.graph),
                 updatedAt: updatedAt ?? "1970-01-01T00:00:00.000Z",
               } satisfies OrchestrationReadModel;
             }),
@@ -2811,6 +2828,81 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         ),
       );
 
+  const getDagGraph: ProjectionSnapshotQueryShape["getDagGraph"] = (dagId) =>
+    projectionDagRepository.getById({ dagId }).pipe(Effect.map(Option.map((row) => row.graph)));
+
+  const getDagSnapshot: ProjectionSnapshotQueryShape["getDagSnapshot"] = (dagId) =>
+    // Same single-transaction pairing as getThreadDetailSnapshot so the
+    // sequence never runs ahead of the returned graph. The dags projector is
+    // not part of REQUIRED_SNAPSHOT_PROJECTORS, so clamp to its own cursor.
+    sql
+      .withTransaction(
+        Effect.gen(function* () {
+          const graph = yield* getDagGraph(dagId);
+          if (Option.isNone(graph)) {
+            return Option.none<OrchestrationDagSnapshot>();
+          }
+          const stateRows = yield* listProjectionStateRows(undefined).pipe(
+            Effect.mapError(
+              toPersistenceSqlOrDecodeError(
+                "ProjectionSnapshotQuery.getDagSnapshot:listProjectionState:query",
+                "ProjectionSnapshotQuery.getDagSnapshot:listProjectionState:decodeRows",
+              ),
+            ),
+          );
+          const dagsSequence =
+            stateRows.find((row) => row.projector === ORCHESTRATION_PROJECTOR_NAMES.dags)
+              ?.lastAppliedSequence ?? 0;
+          const snapshotSequence = Math.min(computeSnapshotSequence(stateRows), dagsSequence);
+          return Option.some({ snapshotSequence, graph: graph.value });
+        }),
+      )
+      .pipe(
+        Effect.mapError((error) =>
+          isPersistenceError(error)
+            ? error
+            : toPersistenceSqlError("ProjectionSnapshotQuery.getDagSnapshot:transaction")(error),
+        ),
+      );
+
+  const listDagShells: ProjectionSnapshotQueryShape["listDagShells"] = (input) =>
+    projectionDagRepository.listAll().pipe(
+      Effect.map((rows) =>
+        rows
+          .map((row) => row.graph)
+          .filter(
+            (graph) =>
+              (input.includeArchived === true || graph.dag.status !== "archived") &&
+              (input.projectId === undefined ||
+                graph.dag.primaryProjectId === input.projectId ||
+                graph.nodes.some((node) => node.projectId === input.projectId)),
+          )
+          .map(dagShellFromGraph),
+      ),
+    );
+
+  const findDagNodeByThreadId: ProjectionSnapshotQueryShape["findDagNodeByThreadId"] = (threadId) =>
+    projectionDagRepository.listAll().pipe(
+      Effect.map((rows) => {
+        let best: ProjectionDagNodeBinding | undefined;
+        const isActive = (node: DagGraph["nodes"][number]) =>
+          node.status === "running" || node.status === "blocked";
+        for (const row of rows) {
+          for (const node of row.graph.nodes) {
+            if (node.threadId !== threadId) continue;
+            if (
+              best === undefined ||
+              (isActive(node) && !isActive(best.node)) ||
+              (isActive(node) === isActive(best.node) && node.updatedAt > best.node.updatedAt)
+            ) {
+              best = { dagId: row.dagId, node };
+            }
+          }
+        }
+        return Option.fromUndefinedOr(best);
+      }),
+    );
+
   return {
     getCommandReadModel,
     getSnapshot,
@@ -2827,10 +2919,14 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
     getThreadShellById,
     getThreadDetailById,
     getThreadDetailSnapshot,
+    getDagGraph,
+    getDagSnapshot,
+    listDagShells,
+    findDagNodeByThreadId,
   } satisfies ProjectionSnapshotQueryShape;
 });
 
 export const OrchestrationProjectionSnapshotQueryLive = Layer.effect(
   ProjectionSnapshotQuery,
   makeProjectionSnapshotQuery,
-);
+).pipe(Layer.provide(ProjectionDagRepositoryLive));

@@ -2,7 +2,7 @@ import { useAuth, useUser } from "@clerk/expo";
 import { useAtomSet, useAtomValue } from "@effect/atom-react";
 import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
-import { useNavigation } from "@react-navigation/native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { SymbolView } from "../../components/AppSymbol";
 import * as Effect from "effect/Effect";
@@ -694,8 +694,20 @@ function capitalize(value: string): string {
 }
 
 function ArchivedThreadsSettingsSection() {
+  const navigation = useNavigation();
+  // Plans are a root-stack screen, not a settings page. A push from inside
+  // the sheet would land underneath it, so dismiss the sheet first.
+  const openPlans = useCallback(() => {
+    let root = navigation;
+    for (let parent = root.getParent(); parent !== undefined; parent = root.getParent()) {
+      root = parent;
+    }
+    root.dispatch(StackActions.pop());
+    root.navigate("Plans");
+  }, [navigation]);
   return (
     <SettingsSection title="Threads">
+      <SettingsRow icon="point.3.connected.trianglepath.dotted" label="Plans" onPress={openPlans} />
       <SettingsRow icon="archivebox" label="Archived Threads" target="SettingsArchive" />
     </SettingsSection>
   );

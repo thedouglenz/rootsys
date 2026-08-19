@@ -11,6 +11,7 @@ This is a living glossary for T3 Code. It explains what common terms mean in thi
 - [Orchestration](#orchestration)
 - [Provider runtime](#provider-runtime)
 - [Checkpointing](#checkpointing)
+- [Project DAG (rootsys)](#project-dag-rootsys)
 
 ## Concepts
 
@@ -179,3 +180,17 @@ The file patch and changed-file summary for one turn. It is usually computed in 
 [22]: ../../apps/server/src/checkpointing/Utils.ts
 [23]: ../../apps/server/src/checkpointing/Diffs.ts
 [24]: ./overview.md
+
+### Project DAG (rootsys)
+
+#### DAG
+
+A long-lived project plan: nodes of work joined by dependency edges, built by a planner, edited on a canvas or via a companion agent, and executed node-by-node across provider threads. An environment-scoped aggregate (`aggregateKind: "dag"`) so it can span projects. See [dag.md](./dag.md).
+
+#### DAG node
+
+One unit of work in a DAG (`title`, `description`, `acceptance`, `parallelSafe`), plus its execution linkage (`status`, executing `threadId`, `outcome`). "Ready" is derived (pending with all upstream nodes done/skipped), never stored.
+
+#### DAG question
+
+A human-blocking prompt raised by an executing agent through `dag_ask_user`. It moves its node to `blocked` without stopping independent nodes; the answer resumes the node.

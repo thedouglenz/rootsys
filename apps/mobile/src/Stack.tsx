@@ -34,6 +34,8 @@ import { ThreadRouteScreen } from "./features/threads/ThreadRouteScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
 import { ConnectionsNewRouteScreen } from "./features/connection/ConnectionsNewRouteScreen";
 import { HomeRouteScreen } from "./features/home/HomeRouteScreen";
+import { PlanDetailRouteScreen } from "./features/plans/PlanDetailRouteScreen";
+import { PlansRouteScreen } from "./features/plans/PlansRouteScreen";
 import { AddProjectDestinationRoute } from "./features/projects/AddProjectDestinationRoute";
 import { AddProjectLocalRoute } from "./features/projects/AddProjectLocalRoute";
 import { AddProjectRepositoryRoute } from "./features/projects/AddProjectRepositoryRoute";
@@ -500,6 +502,27 @@ export const RootStack = createNativeStackNavigator({
       screen: ThreadFileScreen,
       linking: `${THREAD_LINKING_PREFIX}/files/:path*`,
       options: SOLID_HEADER_OPTIONS,
+    }),
+    // Plans (rootsys) live flat in the root stack like threads: a list across
+    // environments and one detail screen per plan.
+    Plans: createNativeStackScreen({
+      screen: PlansRouteScreen,
+      linking: "plans",
+      options: {
+        ...GLASS_HEADER_OPTIONS,
+        title: "Plans",
+        // Android renders its own in-screen header instead of the native bar.
+        headerShown: Platform.OS !== "android",
+      },
+    }),
+    PlanDetail: createNativeStackScreen({
+      screen: PlanDetailRouteScreen,
+      linking: "plans/:environmentId/:dagId",
+      options: {
+        ...GLASS_HEADER_OPTIONS,
+        title: "Plan",
+        headerShown: Platform.OS !== "android",
+      },
     }),
     ThreadSettingsSheet: createNativeStackScreen({
       screen: ExistingThreadSettingsRouteScreen,

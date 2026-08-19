@@ -85,3 +85,11 @@ export const ApprovalRequestId = makeEntityId("ApprovalRequestId");
 export type ApprovalRequestId = typeof ApprovalRequestId.Type;
 export const CheckpointRef = makeEntityId("CheckpointRef");
 export type CheckpointRef = typeof CheckpointRef.Type;
+// DAG (long-running project plan) aggregate ids. A DAG is environment-scoped
+// so its nodes can eventually span more than one project/repo.
+export const DagId = makeEntityId("DagId");
+export type DagId = typeof DagId.Type;
+export const DagNodeId = makeEntityId("DagNodeId");
+export type DagNodeId = typeof DagNodeId.Type;
+export const DagQuestionId = makeEntityId("DagQuestionId");
+export type DagQuestionId = typeof DagQuestionId.Type;

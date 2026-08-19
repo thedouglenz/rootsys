@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./dagPrompts": {
+      "types": "./src/dagPrompts.ts",
+      "import": "./src/dagPrompts.ts"
+    },
     "./themePalettes": {
       "types": "./src/themePalettes.ts",
       "import": "./src/themePalettes.ts"

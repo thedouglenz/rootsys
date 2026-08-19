@@ -26,6 +26,8 @@ import {
   type OrchestrationShellStreamEvent,
   type OrchestrationShellStreamItem,
   type OrchestrationThreadStreamItem,
+  type OrchestrationDagStreamItem,
+  OrchestrationGetDagError,
   OrchestrationGetFullThreadDiffError,
   OrchestrationGetSnapshotError,
   OrchestrationSearchThreadsError,
@@ -1433,6 +1435,95 @@ const makeWsRpcLayer = (
                   snapshot: projectThreadDetailSnapshot(snapshot.value),
                 }),
                 afterSnapshot,
+              );
+            }),
+            { "rpc.aggregate": "orchestration" },
+          ),
+        [ORCHESTRATION_WS_METHODS.listDags]: (input) =>
+          observeRpcEffect(
+            ORCHESTRATION_WS_METHODS.listDags,
+            Effect.all({
+              snapshotSequence: projectionSnapshotQuery
+                .getSnapshotSequence()
+                .pipe(Effect.map(({ snapshotSequence }) => snapshotSequence)),
+              dags: projectionSnapshotQuery.listDagShells(input),
+            }).pipe(
+              Effect.mapError(
+                (cause) => new OrchestrationGetDagError({ message: "Failed to list DAGs", cause }),
+              ),
+            ),
+            { "rpc.aggregate": "orchestration" },
+          ),
+        [ORCHESTRATION_WS_METHODS.subscribeDag]: (input) =>
+          observeRpcStreamEffect(
+            ORCHESTRATION_WS_METHODS.subscribeDag,
+            // Mirrors subscribeThread: buffer live events before reading state,
+            // then replay after `afterSequence` when the gap is small, else
+            // reset with a fresh snapshot.
+            Effect.gen(function* () {
+              const isThisDagEvent = (event: OrchestrationEvent) =>
+                event.aggregateKind === "dag" && event.aggregateId === input.dagId;
+              const toItem = (event: OrchestrationEvent): OrchestrationDagStreamItem => ({
+                kind: "event",
+                event,
+              });
+
+              const liveBuffer = yield* Queue.unbounded<OrchestrationDagStreamItem>();
+              yield* Effect.forkScoped(
+                orchestrationEngine.streamDomainEvents.pipe(
+                  Stream.filter(isThisDagEvent),
+                  Stream.runForEach((event) => Queue.offer(liveBuffer, toItem(event))),
+                ),
+              );
+              const liveTail =
+                input.requestCompletionMarker === true
+                  ? Stream.concat(
+                      Stream.fromEffect(
+                        Queue.offer(liveBuffer, { kind: "synchronized" as const }),
+                      ).pipe(Stream.drain),
+                      Stream.fromQueue(liveBuffer),
+                    )
+                  : Stream.fromQueue(liveBuffer);
+
+              if (input.afterSequence !== undefined) {
+                const afterSequence = input.afterSequence;
+                const replayGap = (yield* orchestrationEngine.latestSequence) - afterSequence;
+                if (replayGap >= 0 && replayGap <= THREAD_RESUME_MAX_GAP) {
+                  const catchUpStream = orchestrationEngine
+                    .readEvents(afterSequence, replayGap)
+                    .pipe(
+                      Stream.filter(isThisDagEvent),
+                      Stream.map(toItem),
+                      Stream.mapError(
+                        (cause) =>
+                          new OrchestrationGetDagError({
+                            message: `Failed to replay DAG ${input.dagId} events`,
+                            cause,
+                          }),
+                      ),
+                    );
+                  return Stream.concat(catchUpStream, liveTail);
+                }
+              }
+
+              const snapshot = yield* projectionSnapshotQuery.getDagSnapshot(input.dagId).pipe(
+                Effect.mapError(
+                  (cause) =>
+                    new OrchestrationGetDagError({
+                      message: `Failed to load DAG ${input.dagId}`,
+                      cause,
+                    }),
+                ),
+              );
+              if (Option.isNone(snapshot)) {
+                return yield* new OrchestrationGetDagError({
+                  message: `DAG ${input.dagId} was not found`,
+                  cause: input.dagId,
+                });
+              }
+              return Stream.concat(
+                Stream.make({ kind: "snapshot" as const, snapshot: snapshot.value }),
+                liveTail,
               );
             }),
             { "rpc.aggregate": "orchestration" },

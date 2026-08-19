@@ -12,6 +12,7 @@ import { ThreadDeletionReactor } from "../Services/ThreadDeletionReactor.ts";
 import { OrchestrationReactor } from "../Services/OrchestrationReactor.ts";
 import { makeOrchestrationReactor } from "./OrchestrationReactor.ts";
 import * as AgentAwarenessRelay from "../../relay/AgentAwarenessRelay.ts";
+import { DagExecutionEngine } from "../../dag/Services/DagExecutionEngine.ts";
 
 describe("OrchestrationReactor", () => {
   let runtime: ManagedRuntime.ManagedRuntime<OrchestrationReactor, never> | null = null;
@@ -73,6 +74,16 @@ describe("OrchestrationReactor", () => {
             },
           }),
         ),
+        Layer.provideMerge(
+          Layer.succeed(DagExecutionEngine, {
+            start: () => {
+              started.push("dag-execution-engine");
+              return Effect.void;
+            },
+            drain: Effect.void,
+            schedule: () => Effect.void,
+          }),
+        ),
       ),
     );
 
@@ -86,6 +97,7 @@ describe("OrchestrationReactor", () => {
       "checkpoint-reactor",
       "thread-deletion-reactor",
       "agent-awareness-relay",
+      "dag-execution-engine",
     ]);
 
     await Effect.runPromise(Scope.close(scope, Exit.void));

@@ -52,6 +52,7 @@ import {
   ReviewDiffPreviewResult,
 } from "./review.ts";
 import { KeybindingsConfigError } from "./keybindings.ts";
+import { OrchestrationGetDagError } from "./dag.ts";
 import {
   ClientOrchestrationCommand,
   ORCHESTRATION_WS_METHODS,
@@ -933,6 +934,19 @@ export const WsOrchestrationSubscribeThreadRpc = Rpc.make(
   },
 );
 
+export const WsOrchestrationListDagsRpc = Rpc.make(ORCHESTRATION_WS_METHODS.listDags, {
+  payload: OrchestrationRpcSchemas.listDags.input,
+  success: OrchestrationRpcSchemas.listDags.output,
+  error: Schema.Union([OrchestrationGetDagError, EnvironmentAuthorizationError]),
+});
+
+export const WsOrchestrationSubscribeDagRpc = Rpc.make(ORCHESTRATION_WS_METHODS.subscribeDag, {
+  payload: OrchestrationRpcSchemas.subscribeDag.input,
+  success: OrchestrationRpcSchemas.subscribeDag.output,
+  error: Schema.Union([OrchestrationGetDagError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
 export const WsSubscribeTerminalEventsRpc = Rpc.make(WS_METHODS.subscribeTerminalEvents, {
   payload: Schema.Struct({}),
   success: TerminalEvent,
@@ -1082,4 +1096,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationGetArchivedShellSnapshotRpc,
   WsOrchestrationSubscribeShellRpc,
   WsOrchestrationSubscribeThreadRpc,
+  WsOrchestrationListDagsRpc,
+  WsOrchestrationSubscribeDagRpc,
 );

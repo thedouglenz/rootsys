@@ -1,6 +1,8 @@
 import {
   ApprovalRequestId,
   type ChatAttachment,
+  type DagGraph,
+  isDagEventType,
   type OrchestrationEvent,
   type OrchestrationSessionStatus,
   ThreadId,
@@ -15,6 +17,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { toPersistenceSqlError, type ProjectionRepositoryError } from "../../persistence/Errors.ts";
 import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts";
+import { ProjectionDagRepository } from "../../persistence/Services/ProjectionDags.ts";
 import { ProjectionPendingApprovalRepository } from "../../persistence/Services/ProjectionPendingApprovals.ts";
 import { ProjectionProjectRepository } from "../../persistence/Services/ProjectionProjects.ts";
 import { ProjectionStateRepository } from "../../persistence/Services/ProjectionState.ts";
@@ -34,6 +37,7 @@ import {
   ProjectionTurnRepository,
 } from "../../persistence/Services/ProjectionTurns.ts";
 import { ProjectionThreadRepository } from "../../persistence/Services/ProjectionThreads.ts";
+import { ProjectionDagRepositoryLive } from "../../persistence/Layers/ProjectionDags.ts";
 import { ProjectionPendingApprovalRepositoryLive } from "../../persistence/Layers/ProjectionPendingApprovals.ts";
 import { ProjectionProjectRepositoryLive } from "../../persistence/Layers/ProjectionProjects.ts";
 import { ProjectionStateRepositoryLive } from "../../persistence/Layers/ProjectionState.ts";
@@ -48,6 +52,7 @@ import {
   OrchestrationProjectionPipeline,
   type OrchestrationProjectionPipelineShape,
 } from "../Services/ProjectionPipeline.ts";
+import { projectDagEvent } from "../dag/projector.ts";
 import {
   attachmentRelativePath,
   parseAttachmentIdFromRelativePath,
@@ -65,6 +70,7 @@ export const ORCHESTRATION_PROJECTOR_NAMES = {
   threadTurns: "projection.thread-turns",
   checkpoints: "projection.checkpoints",
   pendingApprovals: "projection.pending-approvals",
+  dags: "projection.dags",
 } as const;
 
 type ProjectorName =
@@ -480,6 +486,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
     const projectionThreadSessionRepository = yield* ProjectionThreadSessionRepository;
     const projectionTurnRepository = yield* ProjectionTurnRepository;
     const projectionPendingApprovalRepository = yield* ProjectionPendingApprovalRepository;
+    const projectionDagRepository = yield* ProjectionDagRepository;
 
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -1606,6 +1613,43 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       }
     });
 
+    // Whole-graph rows folded with the same pure `projectDagEvent` as the
+    // in-memory read model, so the two can never disagree.
+    const applyDagsProjection: ProjectorDefinition["apply"] = Effect.fn("applyDagsProjection")(
+      function* (event, _attachmentSideEffects) {
+        if (!isDagEventType(event.type) || !("dagId" in event.payload)) {
+          return;
+        }
+        const dagId = event.payload.dagId;
+        if (event.type === "dag.deleted") {
+          yield* projectionDagRepository.deleteById({ dagId });
+          return;
+        }
+        const existing =
+          event.type === "dag.created"
+            ? Option.none<DagGraph>()
+            : Option.map(yield* projectionDagRepository.getById({ dagId }), (row) => row.graph);
+        if (event.type !== "dag.created" && Option.isNone(existing)) {
+          return;
+        }
+        const graph = projectDagEvent(Option.toArray(existing), event)?.find(
+          (candidate) => candidate.dag.dagId === dagId,
+        );
+        if (graph === undefined) {
+          return;
+        }
+        yield* projectionDagRepository.upsert({
+          dagId,
+          title: graph.dag.title,
+          status: graph.dag.status,
+          primaryProjectId: graph.dag.primaryProjectId,
+          graph,
+          createdAt: graph.dag.createdAt,
+          updatedAt: graph.dag.updatedAt,
+        });
+      },
+    );
+
     const projectors: ReadonlyArray<ProjectorDefinition> = [
       {
         name: ORCHESTRATION_PROJECTOR_NAMES.projects,
@@ -1642,6 +1686,10 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
       {
         name: ORCHESTRATION_PROJECTOR_NAMES.threads,
         apply: applyThreadsProjection,
+      },
+      {
+        name: ORCHESTRATION_PROJECTOR_NAMES.dags,
+        apply: applyDagsProjection,
       },
     ];
 
@@ -1745,5 +1793,6 @@ export const OrchestrationProjectionPipelineLive = Layer.effect(
   Layer.provideMerge(ProjectionThreadSessionRepositoryLive),
   Layer.provideMerge(ProjectionTurnRepositoryLive),
   Layer.provideMerge(ProjectionPendingApprovalRepositoryLive),
+  Layer.provideMerge(ProjectionDagRepositoryLive),
   Layer.provideMerge(ProjectionStateRepositoryLive),
 );

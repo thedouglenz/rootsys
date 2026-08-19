@@ -8,7 +8,13 @@
  */
 import type {
   CheckpointRef,
+  DagGraph,
+  DagId,
+  DagNode,
+  DagShell,
   OrchestrationCheckpointSummary,
+  OrchestrationDagSnapshot,
+  OrchestrationListDagsInput,
   OrchestrationProject,
   OrchestrationProjectShell,
   OrchestrationReadModel,
@@ -43,6 +49,11 @@ export interface ProjectionThreadCheckpointContext {
   readonly workspaceRoot: string;
   readonly worktreePath: string | null;
   readonly checkpoints: ReadonlyArray<OrchestrationCheckpointSummary>;
+}
+
+export interface ProjectionDagNodeBinding {
+  readonly dagId: DagId;
+  readonly node: DagNode;
 }
 
 export interface ProjectionFullThreadDiffContext {
@@ -186,6 +197,39 @@ export interface ProjectionSnapshotQueryShape {
     threadId: ThreadId,
     window?: OrchestrationThreadDetailWindow,
   ) => Effect.Effect<Option.Option<OrchestrationThreadDetailSnapshot>, ProjectionRepositoryError>;
+
+  /**
+   * Read a single persisted DAG graph by id.
+   */
+  readonly getDagGraph: (
+    dagId: DagId,
+  ) => Effect.Effect<Option.Option<DagGraph>, ProjectionRepositoryError>;
+
+  /**
+   * Read a DAG graph together with the projection snapshot sequence in one
+   * transaction, mirroring `getThreadDetailSnapshot`.
+   */
+  readonly getDagSnapshot: (
+    dagId: DagId,
+  ) => Effect.Effect<Option.Option<OrchestrationDagSnapshot>, ProjectionRepositoryError>;
+
+  /**
+   * List DAG shells, optionally scoped to a project (matched on the DAG's
+   * primary project or any node's project). Archived DAGs are excluded unless
+   * `includeArchived` is set.
+   */
+  readonly listDagShells: (
+    input: OrchestrationListDagsInput,
+  ) => Effect.Effect<ReadonlyArray<DagShell>, ProjectionRepositoryError>;
+
+  /**
+   * Find the DAG node bound to an executing thread. When several nodes name
+   * the same thread, prefer one that is still `running`/`blocked`, else the
+   * most recently updated.
+   */
+  readonly findDagNodeByThreadId: (
+    threadId: ThreadId,
+  ) => Effect.Effect<Option.Option<ProjectionDagNodeBinding>, ProjectionRepositoryError>;
 }
 
 /**

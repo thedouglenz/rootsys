@@ -13,6 +13,8 @@ import packageJson from "../../package.json" with { type: "json" };
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpSessionRegistry from "./McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
+import { DagToolkitHandlersLive } from "./toolkits/dag/handlers.ts";
+import { DagToolkit } from "./toolkits/dag/tools.ts";
 import {
   PreviewSnapshotToolkitHandlersLive,
   PreviewStandardToolkitHandlersLive,
@@ -223,4 +225,13 @@ const McpTransportLive = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
 }).pipe(Layer.provide(McpAuthMiddlewareLive));
 
-export const layer = PreviewToolkitRegistrationLive.pipe(Layer.provideMerge(McpTransportLive));
+// rootsys: `dag_*` tools ride the same MCP transport; per-session capability
+// gating happens in the handlers (McpInvocationContext.capabilities).
+const DagToolkitRegistrationLive = McpServer.toolkit(DagToolkit).pipe(
+  Layer.provide(DagToolkitHandlersLive),
+);
+
+export const layer = Layer.mergeAll(
+  PreviewToolkitRegistrationLive,
+  DagToolkitRegistrationLive,
+).pipe(Layer.provideMerge(McpTransportLive));

@@ -10,6 +10,7 @@ import * as Effect from "effect/Effect";
 import type * as PlatformError from "effect/PlatformError";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
+import { decideDagCommand } from "./dag/decider.ts";
 import {
   listThreadsByProjectId,
   requireActiveProjectWorkspaceRootAbsent,
@@ -1401,6 +1402,20 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
       };
       return [unsettledEvent, activityAppendedEvent];
     }
+
+    case "dag.create":
+    case "dag.meta.update":
+    case "dag.status.set":
+    case "dag.delete":
+    case "dag.node.upsert":
+    case "dag.node.delete":
+    case "dag.edge.add":
+    case "dag.edge.remove":
+    case "dag.node.status.set":
+    case "dag.question.ask":
+    case "dag.question.answer":
+      // rootsys: DAG aggregate commands are decided in their own module.
+      return yield* decideDagCommand({ command, readModel });
 
     default: {
       command satisfies never;

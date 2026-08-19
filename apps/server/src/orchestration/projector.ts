@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import { toProjectorDecodeError, type OrchestrationProjectorDecodeError } from "./Errors.ts";
+import { projectDagEventIntoReadModel } from "./dag/projector.ts";
 import {
   MessageSentPayloadSchema,
   ProjectCreatedPayload,
@@ -800,7 +801,10 @@ export function projectEvent(
         }),
       );
 
-    default:
-      return Effect.succeed(nextBase);
+    default: {
+      // rootsys: DAG events fold into the optional `dags` slice.
+      const dagProjected = projectDagEventIntoReadModel(nextBase, event);
+      return Effect.succeed(dagProjected ?? nextBase);
+    }
   }
 }

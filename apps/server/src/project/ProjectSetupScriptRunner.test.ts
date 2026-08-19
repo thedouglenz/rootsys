@@ -44,6 +44,10 @@ const makeProjectionSnapshotQueryLayer = (project: OrchestrationProject) =>
     getThreadShellById: () => Effect.die("unused"),
     getThreadDetailById: () => Effect.die("unused"),
     getThreadDetailSnapshot: () => Effect.die("unused"),
+    getDagGraph: () => Effect.die("unused"),
+    getDagSnapshot: () => Effect.die("unused"),
+    listDagShells: () => Effect.die("unused"),
+    findDagNodeByThreadId: () => Effect.die("unused"),
     searchThreads: () => Effect.succeed({ matches: [] }),
   });
 

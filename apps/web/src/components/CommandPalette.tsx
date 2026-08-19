@@ -45,6 +45,7 @@ import {
   SettingsIcon,
   SquarePenIcon,
   TextSearchIcon,
+  WorkflowIcon,
 } from "lucide-react";
 import {
   useCallback,
@@ -1617,6 +1618,17 @@ function OpenCommandPaletteDialog(props: {
         themeHalves,
         initialAppearance: resolvedTheme,
       });
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:plans",
+    searchTerms: ["plans", "plan", "dag", "graph", "workflow", "roadmap"],
+    title: "Open plans",
+    icon: <WorkflowIcon className={ITEM_ICON_CLASS} />,
+    run: async () => {
+      await navigate({ to: "/plans" });
     },
   });
 

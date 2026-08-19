@@ -1,10 +1,11 @@
 import type {
+  DagId,
   OrchestrationEvent,
   OrchestrationReadModel,
   ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
-import { OrchestrationCommand } from "@t3tools/contracts";
+import { isDagCommand, OrchestrationCommand } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Crypto from "effect/Crypto";
@@ -59,9 +60,15 @@ interface CommandEnvelope {
 }
 
 function commandToAggregateRef(command: OrchestrationCommand): {
-  readonly aggregateKind: "project" | "thread";
-  readonly aggregateId: ProjectId | ThreadId;
+  readonly aggregateKind: "project" | "thread" | "dag";
+  readonly aggregateId: ProjectId | ThreadId | DagId;
 } {
+  if (isDagCommand(command)) {
+    return {
+      aggregateKind: "dag",
+      aggregateId: command.dagId,
+    };
+  }
   switch (command.type) {
     case "project.create":
     case "project.meta.update":
