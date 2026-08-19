@@ -13,6 +13,8 @@ export interface DagFlowNodeData extends Record<string, unknown> {
   readonly parallelSafe: boolean;
   readonly executionMode: DagNodeExecutionMode;
   readonly openQuestionCount: number;
+  /** The node the viewer is "at" (the thread's own node); gets a distinct ring. */
+  readonly isCurrent: boolean;
 }
 
 export type DagFlowNode = Node<DagFlowNodeData, "dagNode">;
@@ -37,6 +39,7 @@ export const DagFlowNodeComponent = memo(function DagFlowNodeComponent({
       className={cn(
         "flex w-[240px] flex-col gap-1.5 rounded-lg border bg-card px-3 py-2.5 text-card-foreground shadow-xs",
         STATUS_BORDER[data.displayStatus],
+        data.isCurrent && "ring-2 ring-primary/40 ring-offset-2 ring-offset-background",
         selected && "ring-2 ring-ring ring-offset-2 ring-offset-background",
       )}
     >

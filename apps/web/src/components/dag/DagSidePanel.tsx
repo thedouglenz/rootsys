@@ -1,7 +1,8 @@
 /**
  * Right-panel "Plan" surface: the DAG a thread belongs to, beside the
- * transcript. Defaults to a compact topological node list (cheap to render,
- * no React Flow) with a toggle to the read-only canvas.
+ * transcript. A List / Canvas segmented toggle (remembered globally) picks
+ * between a compact topological node list and the read-only canvas, which
+ * is the default.
  */
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type {
@@ -12,14 +13,16 @@ import type {
   ThreadId,
 } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
+import * as Schema from "effect/Schema";
 import { ExternalLinkIcon, ListIcon, MessageCircleQuestionIcon, WorkflowIcon } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useLocalStorage } from "../../hooks/useLocalStorage";
 import { cn } from "../../lib/utils";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { buildDagNodeViews, type DagNodeView } from "./dagModel";
 import { DagQuestionInbox } from "./DagQuestionInbox";
 import { DagNodeStatusBadge, DagStatusBadge } from "./DagStatusBadge";
@@ -32,6 +35,10 @@ const DagCanvas = lazy(() =>
 );
 
 const noop = () => undefined;
+
+const PLAN_PANEL_VIEW_KEY = "t3code:plan-panel:view";
+const PlanPanelView = Schema.Literals(["list", "canvas"]);
+type PlanPanelView = typeof PlanPanelView.Type;
 
 function SidePanelMessage({ children }: { children: React.ReactNode }) {
   return (
@@ -141,7 +148,11 @@ export function DagSidePanel({
   const navigate = useNavigate();
   const info = useDagLinkInfo(environmentId, dagLink);
   const dispatch = useDagDispatch(environmentId);
-  const [mode, setMode] = useState<"list" | "canvas">("list");
+  const [mode, setMode] = useLocalStorage<PlanPanelView, PlanPanelView>(
+    PLAN_PANEL_VIEW_KEY,
+    "canvas",
+    PlanPanelView,
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<DagNodeId | null>(null);
   const graph = info.graph;
 
@@ -192,35 +203,40 @@ export function DagSidePanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex shrink-0 flex-col gap-1.5 border-b border-border px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <WorkflowIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <h2 className="min-w-0 flex-1 truncate text-sm font-medium">{graph.dag.title}</h2>
-          <DagStatusBadge status={graph.dag.status} />
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <WorkflowIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <h2 className="line-clamp-2 min-w-0 flex-1 text-sm font-medium leading-5">
+            {graph.dag.title}
+          </h2>
+          <DagStatusBadge status={graph.dag.status} className="shrink-0" />
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="tabular-nums">
+          <span className="shrink-0 tabular-nums">
             {progress.done}/{progress.total} done
           </span>
+          <ToggleGroup
+            className="shrink-0"
+            variant="outline"
+            size="xs"
+            aria-label="Plan view"
+            value={[mode]}
+            onValueChange={(value) => {
+              const next = value[0];
+              if (next === "list" || next === "canvas") setMode(next);
+            }}
+          >
+            <Toggle value="list" className="px-2">
+              <ListIcon />
+              List
+            </Toggle>
+            <Toggle value="canvas" className="px-2">
+              <WorkflowIcon />
+              Canvas
+            </Toggle>
+          </ToggleGroup>
           <span className="flex-1" />
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant={mode === "canvas" ? "secondary" : "ghost"}
-                  aria-pressed={mode === "canvas"}
-                  aria-label={mode === "canvas" ? "Show list" : "Show canvas"}
-                  onClick={() => setMode((value) => (value === "list" ? "canvas" : "list"))}
-                />
-              }
-            >
-              {mode === "canvas" ? <ListIcon /> : <WorkflowIcon />}
-            </TooltipTrigger>
-            <TooltipPopup side="bottom">{mode === "canvas" ? "List" : "Canvas"}</TooltipPopup>
-          </Tooltip>
-          <Button type="button" size="compact" variant="outline" onClick={openInPlans}>
+          <Button type="button" size="xs" variant="outline" onClick={openInPlans}>
             <ExternalLinkIcon />
             Open in Plans
           </Button>
@@ -246,8 +262,10 @@ export function DagSidePanel({
             <div className="h-full min-h-64">
               <DagCanvas
                 graph={graph}
-                selectedNodeId={selectedNodeId ?? dagLink.nodeId}
+                selectedNodeId={selectedNodeId}
+                currentNodeId={dagLink.nodeId}
                 readOnly
+                compact
                 onSelectNode={selectCanvasNode}
                 onAddEdge={noop}
                 onRemoveEdge={noop}

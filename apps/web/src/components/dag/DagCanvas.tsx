@@ -15,13 +15,17 @@ import {
   type NodeTypes,
   Panel,
   ReactFlow,
+  type ReactFlowInstance,
+  useReactFlow,
+  useStore,
   type XYPosition,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { LayoutGridIcon, PlusIcon, UnlinkIcon } from "lucide-react";
-import { type KeyboardEvent, useCallback, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTheme } from "../../hooks/useTheme";
+import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -32,6 +36,10 @@ import { DagFlowNodeComponent, type DagFlowNode, type DagFlowNodeData } from "./
 const NODE_TYPES: NodeTypes = { dagNode: DagFlowNodeComponent };
 const EDGE_ID_SEPARATOR = ">";
 const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1 };
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 1.5;
+/** Zoom used when a compact canvas cannot fit the whole graph and centers on the current node. */
+const FOCUS_ZOOM = 0.75;
 const KEY_SEPARATOR = "|";
 
 const edgeId = (from: DagNodeId, to: DagNodeId) => `${from}${EDGE_ID_SEPARATOR}${to}`;
@@ -56,7 +64,14 @@ const nodeDataKey = (view: DagNodeView) =>
 export interface DagCanvasProps {
   readonly graph: DagGraph;
   readonly selectedNodeId: DagNodeId | null;
+  /** Node the surrounding surface is "at" (e.g. the thread's own node); drawn with its own ring. */
+  readonly currentNodeId?: DagNodeId | null;
   readonly readOnly: boolean;
+  /**
+   * Side-panel presentation: refits on container resize, centers on
+   * `currentNodeId` when the graph does not fit, smaller controls, no toolbar.
+   */
+  readonly compact?: boolean;
   readonly onSelectNode: (nodeId: DagNodeId | null) => void;
   readonly onAddEdge: (fromNodeId: DagNodeId, toNodeId: DagNodeId) => void;
   readonly onRemoveEdge: (fromNodeId: DagNodeId, toNodeId: DagNodeId) => void;
@@ -71,7 +86,9 @@ export interface DagCanvasProps {
 export function DagCanvas({
   graph,
   selectedNodeId,
+  currentNodeId = null,
   readOnly,
+  compact = false,
   onSelectNode,
   onAddEdge,
   onRemoveEdge,
@@ -113,7 +130,8 @@ export function DagCanvas({
       const id = view.node.nodeId;
       const position = draggedPositions.get(id) ?? layout.get(id) ?? { x: 0, y: 0 };
       const selected = id === selectedNodeId;
-      const key = [nodeDataKey(view), position.x, position.y, selected, readOnly].join(
+      const isCurrent = id === currentNodeId;
+      const key = [nodeDataKey(view), position.x, position.y, selected, isCurrent, readOnly].join(
         KEY_SEPARATOR,
       );
       const cached = cache.get(id);
@@ -127,6 +145,7 @@ export function DagCanvas({
         parallelSafe: view.node.parallelSafe,
         executionMode: view.node.executionMode,
         openQuestionCount: view.openQuestionCount,
+        isCurrent,
       };
       const node: DagFlowNode = {
         id,
@@ -143,7 +162,7 @@ export function DagCanvas({
     });
     nodeCacheRef.current = next;
     return result;
-  }, [draggedPositions, layout, readOnly, selectedNodeId, views]);
+  }, [currentNodeId, draggedPositions, layout, readOnly, selectedNodeId, views]);
 
   const edges = useMemo<Array<Edge>>(
     () =>
@@ -250,6 +269,26 @@ export function DagCanvas({
 
   const resetLayout = useCallback(() => setDraggedPositions(new Map()), []);
 
+  // Compact canvases start centered on the current node when fit-to-view had
+  // to bottom out at min zoom (the graph is bigger than the panel). Layout is
+  // read through a render-synced ref so the mount-time callback sees the
+  // latest positions without re-registering on every layout change.
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  const onInit = useCallback(
+    (instance: ReactFlowInstance<DagFlowNode, Edge>) => {
+      if (!compact || currentNodeId === null) return;
+      if (instance.getZoom() > MIN_ZOOM + 1e-3) return;
+      const position = layoutRef.current.get(currentNodeId);
+      if (position === undefined) return;
+      void instance.setCenter(position.x + DAG_NODE_WIDTH / 2, position.y + DAG_NODE_HEIGHT / 2, {
+        zoom: FOCUS_ZOOM,
+        duration: 0,
+      });
+    },
+    [compact, currentNodeId],
+  );
+
   return (
     <div className="relative h-full min-h-0 w-full" onKeyDown={onKeyDown}>
       <ReactFlow<DagFlowNode, Edge>
@@ -260,11 +299,12 @@ export function DagCanvas({
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onPaneClick={clearSelection}
+        onInit={onInit}
         colorMode={resolvedTheme}
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
-        minZoom={0.2}
-        maxZoom={1.5}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
         deleteKeyCode={null}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
@@ -274,39 +314,68 @@ export function DagCanvas({
         className="bg-background"
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        <Controls showInteractive={false} position="bottom-left" />
-        <Panel position="top-left" className="flex items-center gap-1.5">
-          {readOnly ? null : (
-            <Button type="button" size="sm" variant="outline" onClick={onAddNode}>
-              <PlusIcon />
-              Add node
-            </Button>
-          )}
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={resetLayout}
-                  disabled={draggedPositions.size === 0}
-                  aria-label="Reset layout"
-                >
-                  <LayoutGridIcon />
-                </Button>
-              }
-            />
-            <TooltipPopup side="bottom">Reset layout</TooltipPopup>
-          </Tooltip>
-          {selectedEdgeId !== null && !readOnly ? (
-            <Button type="button" size="sm" variant="outline" onClick={removeSelectedEdge}>
-              <UnlinkIcon />
-              Remove dependency
-            </Button>
-          ) : null}
-        </Panel>
+        <Controls
+          showInteractive={false}
+          position="bottom-left"
+          className={cn(compact && "[&_button]:!size-6")}
+        />
+        {compact ? <RefitOnResize /> : null}
+        {compact ? null : (
+          <Panel position="top-left" className="flex items-center gap-1.5">
+            {readOnly ? null : (
+              <Button type="button" size="sm" variant="outline" onClick={onAddNode}>
+                <PlusIcon />
+                Add node
+              </Button>
+            )}
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={resetLayout}
+                    disabled={draggedPositions.size === 0}
+                    aria-label="Reset layout"
+                  >
+                    <LayoutGridIcon />
+                  </Button>
+                }
+              />
+              <TooltipPopup side="bottom">Reset layout</TooltipPopup>
+            </Tooltip>
+            {selectedEdgeId !== null && !readOnly ? (
+              <Button type="button" size="sm" variant="outline" onClick={removeSelectedEdge}>
+                <UnlinkIcon />
+                Remove dependency
+              </Button>
+            ) : null}
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   );
+}
+
+/**
+ * Refits the viewport whenever React Flow's own container measurement
+ * changes after mount (the initial fit and any current-node centering are
+ * handled by `fitView` / `onInit`). Must render inside `<ReactFlow>` to reach
+ * its store.
+ */
+function RefitOnResize() {
+  const { fitView } = useReactFlow();
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
+  const measuredOnceRef = useRef(false);
+  useEffect(() => {
+    if (width === 0 || height === 0) return;
+    if (!measuredOnceRef.current) {
+      measuredOnceRef.current = true;
+      return;
+    }
+    void fitView(FIT_VIEW_OPTIONS);
+  }, [fitView, height, width]);
+  return null;
 }

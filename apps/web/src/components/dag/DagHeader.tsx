@@ -9,6 +9,7 @@ import {
   PlayIcon,
   SparklesIcon,
   Trash2Icon,
+  WorkflowIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -22,6 +23,7 @@ import { DagModelPicker } from "./DagModelPicker";
 import { DAG_RUN_BLOCKER_HINTS, resolveDagRunAction, resolveDagRunBlocker } from "./dagModel";
 import { DagPlannerDialog } from "./DagPlannerDialog";
 import { DagStatusBadge } from "./DagStatusBadge";
+import { dagProgress } from "./dagThreadLink";
 import type { DagDispatch } from "./useDagDispatch";
 import { useDagProviders } from "./useDagProviders";
 import { useDagThreadKickoff } from "./useDagThreadKickoff";
@@ -54,6 +56,9 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
   });
   const runAction = resolveDagRunAction(dag.status);
   const archived = dag.status === "archived";
+  const progress = dagProgress(graph);
+  const pauseRequested =
+    dag.status === "paused" && graph.nodes.some((node) => node.status === "running");
   const agentModel = providers.resolveSelection(dag.defaultModelSelection ?? projectDefaultModel);
   const agentBlocker =
     project === null
@@ -122,23 +127,74 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
         {runAction === "resume" ? "Resume" : "Run"}
       </Button>
     );
-    if (runBlocker === null) return button;
+    const hint =
+      runBlocker !== null
+        ? DAG_RUN_BLOCKER_HINTS[runBlocker]
+        : pauseRequested
+          ? "Pause requested — the current node will finish first."
+          : null;
+    if (hint === null) return button;
     return (
       <Tooltip>
         <TooltipTrigger render={<span className="inline-flex">{button}</span>} />
-        <TooltipPopup side="bottom">{DAG_RUN_BLOCKER_HINTS[runBlocker]}</TooltipPopup>
+        <TooltipPopup side="bottom">{hint}</TooltipPopup>
       </Tooltip>
     );
   })();
 
+  const kebab = (
+    <Menu>
+      <MenuTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0"
+            aria-label="More plan actions"
+          />
+        }
+      >
+        <MoreHorizontalIcon />
+      </MenuTrigger>
+      <MenuPopup align="end">
+        {archived ? (
+          <MenuItem
+            onClick={() =>
+              void dispatch({ type: "dag.status.set", dagId: dag.dagId, status: "draft" })
+            }
+          >
+            <ArchiveRestoreIcon />
+            Unarchive
+          </MenuItem>
+        ) : (
+          <MenuItem
+            onClick={() =>
+              void dispatch({ type: "dag.status.set", dagId: dag.dagId, status: "archived" })
+            }
+          >
+            <ArchiveIcon />
+            Archive
+          </MenuItem>
+        )}
+        <MenuSeparator />
+        <MenuItem variant="destructive" onClick={() => void deleteDag()}>
+          <Trash2Icon />
+          Delete plan
+        </MenuItem>
+      </MenuPopup>
+    </Menu>
+  );
+
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
-      <div className="flex min-w-0 flex-1 items-center gap-2">
+    <div className="flex shrink-0 flex-col gap-2 border-b border-border px-3 py-2">
+      {/* Row 1: identity. Title flexes, everything else is pinned. */}
+      <div className="flex items-center gap-2">
+        <WorkflowIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <Input
           aria-label="Plan title"
           size="sm"
           unstyled
-          className="min-w-32 flex-1 truncate rounded-md px-1.5 text-base font-semibold hover:bg-muted/60 focus-visible:bg-muted/60"
+          className="min-w-0 flex-1 truncate rounded-md px-1.5 text-base font-semibold hover:bg-muted/60 focus-visible:bg-muted/60"
           value={titleDraft ?? dag.title}
           disabled={archived}
           onChange={(event) => setTitleDraft(event.target.value)}
@@ -153,50 +209,62 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
             }
           }}
         />
-        <DagStatusBadge status={dag.status} />
+        <DagStatusBadge status={dag.status} className="shrink-0" />
+        {progress.total > 0 ? (
+          <DagProgressIndicator done={progress.done} total={progress.total} />
+        ) : null}
+        {kebab}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Select
-          value={dag.primaryProjectId}
-          disabled={archived}
-          onValueChange={(value) => {
-            if (value === null || value === dag.primaryProjectId) return;
-            void dispatch({
-              type: "dag.meta.update",
-              dagId: dag.dagId,
-              primaryProjectId: ProjectId.make(value),
-            });
-          }}
-        >
-          <SelectTrigger size="sm" className="max-w-44" aria-label="Project">
-            <SelectValue placeholder="Pick project">{project?.title}</SelectValue>
-          </SelectTrigger>
-          <SelectPopup align="end" alignItemWithTrigger={false}>
-            {projects.map((candidate) => (
-              <SelectItem key={candidate.id} value={candidate.id}>
-                {candidate.title}
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
-
-        <DagModelPicker
-          environmentId={environmentId}
-          value={dag.defaultModelSelection}
-          fallback={projectDefaultModel}
-          disabled={archived}
-          onChange={(selection) =>
-            void dispatch({
-              type: "dag.meta.update",
-              dagId: dag.dagId,
-              defaultModelSelection: selection,
-            })
-          }
-        />
+      {/* Row 2: settings on the left, actions on the right. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Project</span>
+            <Select
+              value={dag.primaryProjectId}
+              disabled={archived}
+              onValueChange={(value) => {
+                if (value === null || value === dag.primaryProjectId) return;
+                void dispatch({
+                  type: "dag.meta.update",
+                  dagId: dag.dagId,
+                  primaryProjectId: ProjectId.make(value),
+                });
+              }}
+            >
+              <SelectTrigger size="sm" className="max-w-44" aria-label="Project">
+                <SelectValue placeholder="Pick project">{project?.title}</SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="start" alignItemWithTrigger={false}>
+                {projects.map((candidate) => (
+                  <SelectItem key={candidate.id} value={candidate.id}>
+                    {candidate.title}
+                  </SelectItem>
+                ))}
+              </SelectPopup>
+            </Select>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-muted-foreground">Model</span>
+            <DagModelPicker
+              environmentId={environmentId}
+              value={dag.defaultModelSelection}
+              fallback={projectDefaultModel}
+              disabled={archived}
+              onChange={(selection) =>
+                void dispatch({
+                  type: "dag.meta.update",
+                  dagId: dag.dagId,
+                  defaultModelSelection: selection,
+                })
+              }
+            />
+          </div>
+        </div>
 
         {archived ? null : (
-          <>
+          <div className="ml-auto flex items-center gap-2">
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -240,42 +308,8 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
               </TooltipPopup>
             </Tooltip>
             {runButton}
-          </>
+          </div>
         )}
-
-        <Menu>
-          <MenuTrigger
-            render={<Button variant="ghost" size="icon-sm" aria-label="More plan actions" />}
-          >
-            <MoreHorizontalIcon />
-          </MenuTrigger>
-          <MenuPopup align="end">
-            {archived ? (
-              <MenuItem
-                onClick={() =>
-                  void dispatch({ type: "dag.status.set", dagId: dag.dagId, status: "draft" })
-                }
-              >
-                <ArchiveRestoreIcon />
-                Unarchive
-              </MenuItem>
-            ) : (
-              <MenuItem
-                onClick={() =>
-                  void dispatch({ type: "dag.status.set", dagId: dag.dagId, status: "archived" })
-                }
-              >
-                <ArchiveIcon />
-                Archive
-              </MenuItem>
-            )}
-            <MenuSeparator />
-            <MenuItem variant="destructive" onClick={() => void deleteDag()}>
-              <Trash2Icon />
-              Delete plan
-            </MenuItem>
-          </MenuPopup>
-        </Menu>
       </div>
 
       {project ? (
@@ -289,6 +323,24 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
           projectDefaultModelSelection={projectDefaultModel}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** `done/total` text plus a thin static bar; sized to sit inline with a badge. */
+function DagProgressIndicator({ done, total }: { done: number; total: number }) {
+  const percent = Math.round((done / total) * 100);
+  return (
+    <div
+      className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
+      aria-label={`${done} of ${total} nodes done`}
+    >
+      <span className="tabular-nums">
+        {done}/{total} done
+      </span>
+      <div aria-hidden className="hidden h-1 w-16 overflow-hidden rounded-full bg-muted sm:block">
+        <div className="h-full rounded-full bg-success" style={{ width: `${percent}%` }} />
+      </div>
     </div>
   );
 }
