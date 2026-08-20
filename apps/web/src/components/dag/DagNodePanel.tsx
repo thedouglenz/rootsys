@@ -110,9 +110,17 @@ export function DagNodePanel({
       ...(threadId === null ? { threadId: null } : {}),
     });
 
-  // Retry re-queues the node and gets the plan moving again, since a failed
-  // node is what stopped it.
+  // Re-queues the node and gets the plan moving again. Offered for failed
+  // nodes (the usual case) and for nodes stuck in running/blocked: a node
+  // whose executor session died — server restart, crashed provider — keeps
+  // its status forever, and the serial scheduler will not pass it.
   const retry = async () => {
+    if (node.status === "running" || node.status === "blocked") {
+      const confirmed = await requestConfirmDialog(
+        `Restart node "${node.title}"?\nIf its executor is still working, that work is abandoned and a new thread starts from the node's description.`,
+      );
+      if (confirmed === false) return;
+    }
     const ok = await setStatus("pending", null);
     if (!ok || graph.dag.status === "running") return;
     await dispatch({ type: "dag.status.set", dagId, status: "running" });
@@ -309,9 +317,9 @@ export function DagNodePanel({
       </ScrollArea>
       {readOnly ? null : (
         <div className="flex shrink-0 flex-wrap gap-1.5 border-t border-border p-3">
-          {node.status === "failed" ? (
+          {node.status === "failed" || executing ? (
             <Button type="button" size="sm" variant="outline" onClick={() => void retry()}>
-              Retry
+              {node.status === "failed" ? "Retry" : "Restart"}
             </Button>
           ) : null}
           {node.status !== "done" ? (
