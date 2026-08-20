@@ -22,6 +22,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { ScrollArea } from "../ui/scroll-area";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Textarea } from "../ui/textarea";
 import {
   buildDagNodeViews,
@@ -112,6 +113,8 @@ export function DagNodePanel({
     [graph, model.selection],
   );
 
+  const [doneOpen, setDoneOpen] = useState(false);
+  const [doneSummary, setDoneSummary] = useState("");
   const modelRowRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (focusModelToken === 0) return;
@@ -171,13 +174,14 @@ export function DagNodePanel({
     }
   };
 
-  const setStatus = (status: DagNode["status"], threadId?: null) =>
+  const setStatus = (status: DagNode["status"], threadId?: null, summary?: string) =>
     dispatch({
       type: "dag.node.status.set",
       dagId,
       nodeId: node.nodeId,
       status,
       ...(threadId === null ? { threadId: null } : {}),
+      ...(summary !== undefined && summary.trim() !== "" ? { summary: summary.trim() } : {}),
     });
 
   // Re-queues the node and gets the plan moving again. Offered for failed
@@ -445,14 +449,51 @@ export function DagNodePanel({
             </Button>
           ) : null}
           {node.status !== "done" ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void setStatus("done")}
-            >
-              Mark done
-            </Button>
+            <Popover open={doneOpen} onOpenChange={setDoneOpen}>
+              <PopoverTrigger
+                render={
+                  <Button type="button" size="sm" variant="outline">
+                    Mark done
+                  </Button>
+                }
+              />
+              <PopoverPopup align="start" className="w-80 p-3">
+                <p className="text-xs font-medium">Mark done</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  The summary is passed to the nodes that depend on this one. Paste what the
+                  executor reported if it could not report itself.
+                </p>
+                <Textarea
+                  autoFocus
+                  className="mt-2 min-h-20 text-xs"
+                  placeholder="What changed, where, anything downstream needs to know…"
+                  value={doneSummary}
+                  onChange={(event) => setDoneSummary(event.target.value)}
+                />
+                <div className="mt-2 flex justify-end gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDoneOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const summary = doneSummary;
+                      setDoneOpen(false);
+                      setDoneSummary("");
+                      void setStatus("done", undefined, summary);
+                    }}
+                  >
+                    Mark done
+                  </Button>
+                </div>
+              </PopoverPopup>
+            </Popover>
           ) : null}
           {node.status !== "skipped" && node.status !== "done" ? (
             <Button

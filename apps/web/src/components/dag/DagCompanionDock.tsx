@@ -25,6 +25,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   ExternalLinkIcon,
+  MessageSquarePlusIcon,
   MinusIcon,
   SendHorizontalIcon,
   XIcon,
@@ -243,15 +244,29 @@ function DagCompanionDockBody({
             <span className="flex-1" />
           )}
           {companion !== null ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Open the companion thread"
-              onClick={() => openFullThread(companion.id)}
-            >
-              <ExternalLinkIcon />
-            </Button>
+            <>
+              {/* A fresh thread is the recovery path when the current one's
+                  agent session has lost its tool access. */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Start a new companion conversation"
+                disabled={creating}
+                onClick={() => void create()}
+              >
+                <MessageSquarePlusIcon />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Open the companion thread"
+                onClick={() => openFullThread(companion.id)}
+              >
+                <ExternalLinkIcon />
+              </Button>
+            </>
           ) : null}
           <Button
             type="button"
