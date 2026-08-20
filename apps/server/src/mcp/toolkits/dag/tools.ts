@@ -183,7 +183,10 @@ export const DagListModelsTool = readonlyTool(
   Tool.make("dag_list_models", {
     description:
       "List the provider instances available in this environment and the model ids each one exposes. Use these instanceId/model pairs for dag_upsert_node's modelSelection when a node needs a specific provider or model.",
-    parameters: Schema.Struct({}),
+    // No `parameters` key at all. `Schema.Struct({})` renders as
+    // `anyOf: [object, array]`, which is not a valid MCP inputSchema, and a
+    // client that rejects one tool drops the whole server's toolset — see
+    // the "every tool takes an object" guard in toolkitRegistration.test.ts.
     success: Schema.Struct({ instances: Schema.Array(DagModelInstance) }),
     failure: DagToolError,
     dependencies,

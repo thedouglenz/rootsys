@@ -62,4 +62,24 @@ it.layer(TestLayer)("MCP toolkit registration", (it) => {
       }
     }),
   );
+
+  /**
+   * MCP requires every tool's `inputSchema` to be an object schema, and a
+   * client that rejects one tool drops the *whole* server's toolset: agents
+   * then see `t3-code` connected with zero tools and no error anywhere.
+   * `Schema.Struct({})` renders as `anyOf: [object, array]`, so a no-argument
+   * tool must omit `parameters` entirely rather than declare an empty struct.
+   */
+  it.effect("declares an object inputSchema for every tool", () =>
+    Effect.gen(function* () {
+      const server = yield* McpServer.McpServer;
+      const offenders = server.tools
+        .map(({ tool }) => ({
+          name: tool.name,
+          type: (tool.inputSchema as { readonly type?: unknown }).type,
+        }))
+        .filter(({ type }) => type !== "object");
+      expect(offenders).toEqual([]);
+    }),
+  );
 });

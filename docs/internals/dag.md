@@ -81,6 +81,24 @@ It is set one of two ways:
   `{ dagId, nodeId, role: "executor" }` when the thread exists. This covers a
   chat thread whose agent bound itself to a node with `dag_set_node_status`.
 
+### When a companion turn replaces the provider session
+
+`ensureSessionForThread` (`orchestration/Layers/ProviderCommandReactor.ts`)
+reuses the thread's live provider session unless the runtime mode, cwd,
+provider instance, or — for `claudeAgent` — the requested `ModelSelection`
+changed. A change means a replacement session, which resumes: a fresh CLI
+process, a re-handshake, and `claude.session.replacing` in the log.
+
+That matters for the companion dock, because it creates the thread and sends
+its kickoff brief in one `thread.turn.start` and the user's first message
+follows seconds later. If those two turns carry different `ModelSelection`s,
+the second one legitimately replaces the first session. Whoever sends the
+kickoff should resolve the _same_ selection the composer will send, not the
+environment default — the server has no way to tell an accidental difference
+from a deliberate model switch, and must honour both identically.
+`ProviderCommandReactor.test.ts` pins both directions: identical selections
+reuse one session, a different model still replaces.
+
 `orchestration.getDagTimeline` (`{ dagId, afterSequence?, limit? }`) returns
 the DAG's run log: `OrchestrationEventStore.readByAggregate` reads the `dag`
 stream and `dagTimelineEntriesFromEvents` flattens each event into a
@@ -115,29 +133,56 @@ returns. The answer is delivered later as a follow-up turn on the asking
 thread by the execution engine. This keeps the flow provider-agnostic and
 survives MCP tool timeouts.
 
+### One bad tool schema hides the whole toolkit
+
+MCP requires every tool's `inputSchema` to be an object schema, and Claude Code
+enforces it for the **server**, not the tool: one malformed entry and the CLI
+registers `t3-code` as `connected` with an empty tool list. Nothing reports the
+drop — not the CLI transcript, not our logs, not the agent, which simply
+behaves as if `dag_*` never existed and (in the case that surfaced this) finishes
+a node it can no longer mark done.
+
+The trap is that `Schema.Struct({})` does not render as an empty object. Effect
+emits `{"anyOf":[{"type":"object"},{"type":"array"}]}` for it, which is not a
+valid `inputSchema`. A tool with no arguments must therefore **omit the
+`parameters` key entirely** — that renders as
+`{"type":"object","additionalProperties":false}`. `dag_list_models` shipped with
+the empty struct and silently took all twenty-six `dag_*` and `preview_*` tools
+down with it.
+
+`toolkitRegistration.test.ts` now asserts every registered tool declares
+`type: "object"`, which is the cheapest place to catch the next one.
+
 ### Credentials survive a restart
 
 The bearer token that unlocks the toolkit is minted per provider session by
 `apps/server/src/mcp/McpSessionRegistry.ts` and mirrored into the
-`mcp_credentials` table (hash only, never the raw token). This matters because
-a provider CLI stores the MCP server config we hand it inside its own session
-state: Claude Code writes `mcpServers` per session, so a session resumed after
-a server restart presents the _old_ token. Before the table existed, the
-registry lost every credential on restart and each `dag_*` call from a resumed
-agent came back 401 — the agent kept working but reported that the tools did
-not exist.
+`mcp_credentials` table (hash only, never the raw token), so a token that
+outlives the process that issued it still resolves.
 
-Two rules keep that from regressing:
+**Resumed sessions do inherit the MCP config we pass.** This was doubted enough
+to be worth writing down: the Claude adapter puts the server in
+`ClaudeQueryOptions.mcpServers`, the agent SDK turns that into a CLI-level
+`--mcp-config <json>` argument, and `--resume` spawns a fresh CLI process that
+reads it like any other. Verified against Claude Code 2.1.237 / agent SDK
+0.3.170 by pointing a resumed session at an instrumented endpoint: it dialled
+with the token from the _current_ start, not a stored one. So there is no need
+for a `--mcp-config` file of our own, and an agent that has lost its tools after
+a resume lost them somewhere else — check the tool schemas first (above), then
+the endpoint, then the credential.
+
+`--strict-mcp-config` must stay off: it would drop the user's own MCP servers.
+
+Two rules keep the credential itself honest:
 
 - Shutdown (`ProviderService.stopAll`, a layer finalizer) only drops the
   in-memory map. Explicit revocation — `stopSession`, or a session start whose
   capability set changed — still deletes the rows, so a thread that loses
   `preview` cannot keep a preview-capable token.
-- The MCP endpoint URL has to stay stable across restarts, because the CLI
-  baked it into its session config alongside the token. The dev runner derives
-  ports from the worktree path, and a normal install keeps its configured port,
-  so this holds in practice; moving the server to a new port strands resumed
-  sessions regardless of the credential.
+- The endpoint and token are re-read from the registry on every session start
+  (`McpProviderSession.readMcpProviderSession`, logged as `claude.mcp.session`
+  with the resolved endpoint), so a port or token change lands on the next
+  start rather than stranding the session.
 
 Credentials still expire after a day without a sign of life, and lapsed rows
 are pruned when the registry loads.

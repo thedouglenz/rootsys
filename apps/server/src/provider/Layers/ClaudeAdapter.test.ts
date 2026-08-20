@@ -14,6 +14,7 @@ import type {
 import {
   ApprovalRequestId,
   ClaudeSettings,
+  EnvironmentId,
   ProviderDriverKind,
   ProviderItemId,
   ProviderRuntimeEvent,
@@ -34,6 +35,7 @@ import * as TestClock from "effect/testing/TestClock";
 
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import * as McpProviderSession from "../../mcp/McpProviderSession.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { ProviderAdapterProcessError, ProviderAdapterValidationError } from "../Errors.ts";
 import type { ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
@@ -3575,6 +3577,65 @@ describe("ClaudeAdapterLive", () => {
       assert.equal(createInput?.options.sessionId, undefined);
       assert.equal(createInput?.options.resumeSessionAt, undefined);
     }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  /**
+   * The SDK turns `options.mcpServers` into a `--mcp-config` argument on the
+   * CLI it spawns, and a resumed session is still a fresh process, so the
+   * server has to be attached on every start. Dropping it on the resume path
+   * is invisible from the outside: the agent simply has no `dag_*` tools.
+   */
+  it.effect("attaches the t3-code MCP server to resumed sessions too", () => {
+    const harness = makeHarness();
+    const mcpThreadId = ThreadId.make("thread-claude-mcp-resume");
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      McpProviderSession.setMcpProviderSession({
+        environmentId: EnvironmentId.make("environment-claude-mcp-test"),
+        threadId: mcpThreadId,
+        providerSessionId: "provider-session-claude-mcp-test",
+        providerInstanceId: ProviderInstanceId.make("claudeAgent"),
+        endpoint: "http://127.0.0.1:13773/mcp",
+        authorizationHeader: "Bearer mcp-test-token",
+      });
+
+      const expectedServers = {
+        "t3-code": {
+          type: "http" as const,
+          url: "http://127.0.0.1:13773/mcp",
+          headers: { Authorization: "Bearer mcp-test-token" },
+        },
+      };
+
+      yield* adapter.startSession({
+        threadId: mcpThreadId,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+      });
+      const freshInput = harness.getLastCreateQueryInput();
+      assert.equal(freshInput?.options.resume, undefined);
+      assert.deepEqual(freshInput?.options.mcpServers, expectedServers);
+
+      yield* adapter.stopSession(mcpThreadId);
+
+      yield* adapter.startSession({
+        threadId: mcpThreadId,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        resumeCursor: {
+          threadId: mcpThreadId,
+          resume: "550e8400-e29b-41d4-a716-446655440000",
+          turnCount: 2,
+        },
+        runtimeMode: "full-access",
+      });
+      const resumedInput = harness.getLastCreateQueryInput();
+      assert.equal(resumedInput?.options.resume, "550e8400-e29b-41d4-a716-446655440000");
+      assert.deepEqual(resumedInput?.options.mcpServers, expectedServers);
+    }).pipe(
+      Effect.ensuring(Effect.sync(() => McpProviderSession.clearMcpProviderSession(mcpThreadId))),
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
     );

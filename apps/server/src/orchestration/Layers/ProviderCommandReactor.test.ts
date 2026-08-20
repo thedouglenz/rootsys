@@ -2044,6 +2044,64 @@ describe("ProviderCommandReactor", () => {
     });
   });
 
+  /**
+   * A restart on a claude thread is not free: the replacement resumes, which
+   * costs a re-handshake and re-reads the transcript. Two turns that ask for
+   * the same model must therefore land on one session, while a genuinely
+   * different model must still replace it — that is the line the DAG
+   * companion dock walks when its kickoff brief and the user's first message
+   * arrive seconds apart.
+   */
+  it("reuses one claude session across turns with an unchanged model selection", async () => {
+    const harness = await createHarness({
+      threadModelSelection: {
+        instanceId: ProviderInstanceId.make("claudeAgent"),
+        model: "claude-sonnet-4-6",
+      },
+    });
+    const now = "2026-01-01T00:00:00.000Z";
+    const selection = (model: string) =>
+      createModelSelection(ProviderInstanceId.make("claudeAgent"), model, [
+        { id: "effort", value: "medium" },
+      ]);
+    const turn = (index: number, model: string) =>
+      Effect.runPromise(
+        harness.engine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.make(`cmd-turn-start-claude-same-model-${index}`),
+          threadId: ThreadId.make("thread-1"),
+          message: {
+            messageId: asMessageId(`user-message-claude-same-model-${index}`),
+            role: "user",
+            text: `claude turn ${index}`,
+            attachments: [],
+          },
+          modelSelection: selection(model),
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          runtimeMode: "approval-required",
+          createdAt: now,
+        }),
+      );
+
+    await turn(1, "claude-sonnet-4-6");
+    await waitFor(() => harness.startSession.mock.calls.length === 1);
+    await waitFor(() => harness.sendTurn.mock.calls.length === 1);
+
+    await turn(2, "claude-sonnet-4-6");
+    await waitFor(() => harness.sendTurn.mock.calls.length === 2);
+    expect(harness.startSession).toHaveBeenCalledTimes(1);
+    expect(harness.stopSession).toHaveBeenCalledTimes(0);
+
+    // The reverse direction still has to work: a different model replaces.
+    await turn(3, "claude-opus-4-6");
+    await waitFor(() => harness.startSession.mock.calls.length === 2);
+    await waitFor(() => harness.sendTurn.mock.calls.length === 3);
+    expect(harness.startSession.mock.calls[1]?.[1]).toMatchObject({
+      resumeCursor: { opaque: "resume-1" },
+      modelSelection: selection("claude-opus-4-6"),
+    });
+  });
+
   it("restarts claude sessions when claude effort changes", async () => {
     const harness = await createHarness({
       threadModelSelection: {
