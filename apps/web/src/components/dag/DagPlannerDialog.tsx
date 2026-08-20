@@ -49,7 +49,7 @@ export function DagPlannerDialog({
   const start = async () => {
     if (!canStart || resolvedModel === null) return;
     setPending(true);
-    const ok = await startPlanner({
+    const threadId = await startPlanner({
       environmentId,
       projectId,
       projectTitle,
@@ -60,7 +60,7 @@ export function DagPlannerDialog({
       goal: goal.trim(),
     });
     setPending(false);
-    if (ok) onOpenChange(false);
+    if (threadId !== null) onOpenChange(false);
   };
 
   return (

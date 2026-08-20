@@ -20,6 +20,7 @@ import { Input } from "../ui/input";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { useDagCompanionDock } from "./DagCompanionDock";
 import { DagModelPicker } from "./DagModelPicker";
 import { DAG_RUN_BLOCKER_HINTS, resolveDagRunAction, resolveDagRunBlocker } from "./dagModel";
 import { buildDagResumeConfirmMessage, shouldConfirmDagResume } from "./dagPause";
@@ -28,7 +29,6 @@ import { DagStatusBadge } from "./DagStatusBadge";
 import { dagProgress } from "./dagThreadLink";
 import type { DagDispatch } from "./useDagDispatch";
 import { useDagProviders } from "./useDagProviders";
-import { useDagThreadKickoff } from "./useDagThreadKickoff";
 
 export interface DagHeaderProps {
   readonly environmentId: EnvironmentId;
@@ -51,10 +51,12 @@ export function DagHeader({
 }: DagHeaderProps) {
   const { dag } = graph;
   const [plannerOpen, setPlannerOpen] = useState(false);
-  const [companionPending, setCompanionPending] = useState(false);
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const providers = useDagProviders(environmentId);
-  const { startCompanion } = useDagThreadKickoff();
+  // The dock owns its own state; the button only flips it, so opening the
+  // companion never re-renders the canvas.
+  const [companionDock, setCompanionDock] = useDagCompanionDock(dag.dagId);
+  const companionOpen = companionDock === "open";
 
   const project = useMemo(
     () => projects.find((candidate) => candidate.id === dag.primaryProjectId) ?? null,
@@ -102,19 +104,6 @@ export function DagHeader({
     setTitleDraft(null);
     if (next.length === 0 || next === dag.title) return;
     void dispatch({ type: "dag.meta.update", dagId: dag.dagId, title: next });
-  };
-
-  const openCompanion = async () => {
-    if (project === null || agentModel === null) return;
-    setCompanionPending(true);
-    await startCompanion({
-      environmentId,
-      projectId: project.id,
-      modelSelection: agentModel,
-      dagId: dag.dagId,
-      dagTitle: dag.title,
-    });
-    setCompanionPending(false);
   };
 
   const deleteDag = async () => {
@@ -321,9 +310,10 @@ export function DagHeader({
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
-                      disabled={agentBlocker !== null || companionPending}
-                      onClick={() => void openCompanion()}
+                      variant={companionDock === "closed" ? "outline" : "secondary"}
+                      aria-pressed={companionOpen}
+                      disabled={agentBlocker !== null}
+                      onClick={() => setCompanionDock(companionOpen ? "closed" : "open")}
                     >
                       <BotIcon />
                       Companion
@@ -332,7 +322,12 @@ export function DagHeader({
                 }
               />
               <TooltipPopup side="bottom">
-                {agentBlocker ?? "Open a chat that edits this plan for you."}
+                {agentBlocker ??
+                  (companionOpen
+                    ? "Hide the companion chat."
+                    : companionDock === "collapsed"
+                      ? "Expand the companion chat."
+                      : "Chat beside the plan; it makes the edits for you.")}
               </TooltipPopup>
             </Tooltip>
             {runButton}

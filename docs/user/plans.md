@@ -42,9 +42,16 @@ session; **Reset layout** puts everything back.
 
 ## Edit with a companion
 
-**Companion** starts a chat that knows this plan. Ask it to split a node, reorder
-work, tighten acceptance criteria, or answer a question, and it applies the change
-directly to the graph. It does not run the work.
+**Companion** opens a chat docked in the bottom-right corner of the plan, so the graph
+stays on screen while you talk. Ask it to split a node, reorder work, tighten
+acceptance criteria, or answer a question, and it applies the change directly to the
+graph — the canvas updates as it edits. It does not run the work.
+
+The pane minimizes to a small bar (with a dot that lights up while the companion is
+working) and closes with the ✕ or by pressing **Companion** again; each plan remembers
+how you left it. Every plan keeps one companion chat, so reopening the pane continues
+the same conversation. The ↗ button opens that chat as a full thread when you want the
+whole transcript.
 
 ## Run
 

@@ -20,6 +20,7 @@ import {
 } from "../WorkspaceBreadcrumb";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar";
+import { DagCompanionDock } from "./DagCompanionDock";
 import { DagHeader } from "./DagHeader";
 import { mintDagNodeId } from "./dagModel";
 import { DagNodePanel } from "./DagNodePanel";
@@ -103,6 +104,13 @@ export function DagPage({
     () => graph?.nodes.find((node) => node.nodeId === selectedNodeId) ?? null,
     [graph, selectedNodeId],
   );
+  // What a companion thread would run with when the plan names no model.
+  const projectDefaultModelSelection = useMemo(
+    () =>
+      projects.find((project) => project.id === graph?.dag.primaryProjectId)
+        ?.defaultModelSelection ?? null,
+    [graph, projects],
+  );
   // The pause banner's "Change model" opens the parked node's panel on its
   // model picker, or the plan's default picker when no node is named. The
   // request is pinned to that node so picking another one lands normally.
@@ -141,6 +149,7 @@ export function DagPage({
     const ok = await dispatch({ type: "dag.node.upsert", dagId, nodeId, title: "New node" });
     if (ok) selectNode(nodeId);
   }, [dagId, dispatch, graph, selectNode]);
+  const addNodeFromCanvas = useCallback(() => void addNode(), [addNode]);
   const addEdge = useCallback(
     (fromNodeId: DagNodeId, toNodeId: DagNodeId) =>
       void dispatch({ type: "dag.edge.add", dagId, fromNodeId, toNodeId }),
@@ -226,7 +235,7 @@ export function DagPage({
             onChangeModel={readOnly ? null : focusModelFor}
             className="mx-3 mt-2"
           />
-          <div className="min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
             <Suspense
               fallback={
                 <CenteredState>
@@ -242,9 +251,22 @@ export function DagPage({
                 onOpenNodeThread={openNodeThread}
                 onAddEdge={addEdge}
                 onRemoveEdge={removeEdge}
-                onAddNode={() => void addNode()}
+                onAddNode={addNodeFromCanvas}
               />
             </Suspense>
+            {/* Sibling of the canvas, not a parent: dock state changes never
+                reach `DagCanvas`. */}
+            {readOnly ? null : (
+              <DagCompanionDock
+                environmentId={environmentId}
+                dagId={graph.dag.dagId}
+                dagTitle={graph.dag.title}
+                projectId={graph.dag.primaryProjectId}
+                fallbackModelSelection={
+                  graph.dag.defaultModelSelection ?? projectDefaultModelSelection
+                }
+              />
+            )}
           </div>
           <DagQuestionInbox graph={graph} dispatch={dispatch} />
           <DagTimeline

@@ -7,6 +7,7 @@ import {
   type ModelSelection,
   type ProjectId,
   type ThreadDagRole,
+  type ThreadId,
 } from "@t3tools/contracts";
 import { buildDagCompanionBrief, buildDagPlannerBrief } from "@t3tools/shared/dagPrompts";
 import { useNavigate } from "@tanstack/react-router";
@@ -26,19 +27,22 @@ interface KickoffInput {
   readonly text: string;
   readonly dagId: DagId;
   readonly role: Extract<ThreadDagRole, "planner" | "companion">;
+  /** False leaves the caller on its own surface (the plan page's dock hosts it). */
+  readonly navigate?: boolean | undefined;
 }
 
 /**
  * Planner and companion threads are ordinary threads whose first user message
  * is the role brief. This hook creates the thread and its first turn in one
- * `thread.turn.start` and navigates to it.
+ * `thread.turn.start`, then navigates to it unless the caller opted out.
+ * Returns the new thread's id, or null when the server refused.
  */
 export function useDagThreadKickoff() {
   const navigate = useNavigate();
   const startTurn = useAtomCommand(threadEnvironment.startTurn, { reportFailure: false });
 
   const kickoff = useCallback(
-    async (input: KickoffInput): Promise<boolean> => {
+    async (input: KickoffInput): Promise<ThreadId | null> => {
       const threadId = newThreadId();
       const createdAt = new Date().toISOString();
       const result = await startTurn({
@@ -73,13 +77,15 @@ export function useDagThreadKickoff() {
       });
       if (result._tag === "Failure") {
         toastManager.add({ type: "error", title: "Could not start the agent thread." });
-        return false;
+        return null;
       }
-      await navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(scopeThreadRef(input.environmentId, threadId)),
-      });
-      return true;
+      if (input.navigate ?? true) {
+        await navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(scopeThreadRef(input.environmentId, threadId)),
+        });
+      }
+      return threadId;
     },
     [navigate, startTurn],
   );
@@ -119,6 +125,8 @@ export function useDagThreadKickoff() {
       readonly modelSelection: ModelSelection;
       readonly dagId: DagId;
       readonly dagTitle: string;
+      /** False keeps the user where they are and just returns the thread id. */
+      readonly navigate?: boolean | undefined;
     }) =>
       kickoff({
         environmentId: input.environmentId,
@@ -128,6 +136,7 @@ export function useDagThreadKickoff() {
         dagId: input.dagId,
         role: "companion",
         text: buildDagCompanionBrief({ dagId: input.dagId, dagTitle: input.dagTitle }),
+        navigate: input.navigate,
       }),
     [kickoff],
   );
