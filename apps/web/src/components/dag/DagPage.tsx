@@ -1,3 +1,4 @@
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { DagId, DagNodeId, EnvironmentId } from "@t3tools/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -17,6 +18,7 @@ import {
   WorkspaceBreadcrumbItem,
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
+import { buildThreadRouteParams } from "../../threadRoutes";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar";
 import { DagHeader } from "./DagHeader";
 import { mintDagNodeId } from "./dagModel";
@@ -101,6 +103,19 @@ export function DagPage({
     [graph, selectedNodeId],
   );
   const goToList = useCallback(() => void navigate({ to: "/plans" }), [navigate]);
+  // Double-click on the canvas jumps to the node's executor thread; nodes that
+  // have not started yet keep the panel open and do nothing.
+  const openNodeThread = useCallback(
+    (nodeId: DagNodeId) => {
+      const threadId = graph?.nodes.find((node) => node.nodeId === nodeId)?.threadId ?? null;
+      if (threadId === null) return;
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: buildThreadRouteParams(scopeThreadRef(environmentId, threadId)),
+      });
+    },
+    [environmentId, graph, navigate],
+  );
 
   const addNode = useCallback(async () => {
     if (graph === null) return;
@@ -199,6 +214,7 @@ export function DagPage({
                 selectedNodeId={selectedNodeId}
                 readOnly={readOnly}
                 onSelectNode={setSelectedNodeId}
+                onOpenNodeThread={openNodeThread}
                 onAddEdge={addEdge}
                 onRemoveEdge={removeEdge}
                 onAddNode={() => void addNode()}

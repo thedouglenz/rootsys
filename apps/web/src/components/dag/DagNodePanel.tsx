@@ -296,6 +296,7 @@ export function DagNodePanel({
                 <Link
                   to="/$environmentId/$threadId"
                   params={buildThreadRouteParams(scopeThreadRef(environmentId, node.threadId))}
+                  title="You can also double-click this node on the canvas."
                   className="inline-flex items-center gap-1 text-xs text-foreground underline-offset-2 hover:underline"
                 >
                   <ExternalLinkIcon className="size-3" />

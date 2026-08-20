@@ -22,7 +22,15 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { LayoutGridIcon, PlusIcon, UnlinkIcon } from "lucide-react";
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useTheme } from "../../hooks/useTheme";
 import { cn } from "../../lib/utils";
@@ -73,6 +81,11 @@ export interface DagCanvasProps {
    */
   readonly compact?: boolean;
   readonly onSelectNode: (nodeId: DagNodeId | null) => void;
+  /**
+   * Double-click on a node. The parent decides what "open" means (usually
+   * navigating to the node's executor thread) and ignores nodes without one.
+   */
+  readonly onOpenNodeThread?: (nodeId: DagNodeId) => void;
   readonly onAddEdge: (fromNodeId: DagNodeId, toNodeId: DagNodeId) => void;
   readonly onRemoveEdge: (fromNodeId: DagNodeId, toNodeId: DagNodeId) => void;
   readonly onAddNode: () => void;
@@ -90,6 +103,7 @@ export function DagCanvas({
   readOnly,
   compact = false,
   onSelectNode,
+  onOpenNodeThread,
   onAddEdge,
   onRemoveEdge,
   onAddNode,
@@ -262,6 +276,15 @@ export function DagCanvas({
     [removeSelectedEdge, selectedEdgeId],
   );
 
+  // Double-click opens the node's thread. `zoomOnDoubleClick` is off below so
+  // this never fights the canvas zoom.
+  const onNodeDoubleClick = useCallback(
+    (_event: MouseEvent, node: DagFlowNode) => {
+      onOpenNodeThread?.(DagNodeIdSchema.make(node.id));
+    },
+    [onOpenNodeThread],
+  );
+
   const clearSelection = useCallback(() => {
     onSelectNode(null);
     setSelectedEdgeId(null);
@@ -298,6 +321,7 @@ export function DagCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDoubleClick={onNodeDoubleClick}
         onPaneClick={clearSelection}
         onInit={onInit}
         colorMode={resolvedTheme}
@@ -306,6 +330,7 @@ export function DagCanvas({
         minZoom={MIN_ZOOM}
         maxZoom={MAX_ZOOM}
         deleteKeyCode={null}
+        zoomOnDoubleClick={false}
         nodesDraggable={!readOnly}
         nodesConnectable={!readOnly}
         elementsSelectable
@@ -351,6 +376,11 @@ export function DagCanvas({
                 Remove dependency
               </Button>
             ) : null}
+            {onOpenNodeThread === undefined ? null : (
+              <span className="pl-1 text-xs text-muted-foreground">
+                Double-click a node to open its thread
+              </span>
+            )}
           </Panel>
         )}
       </ReactFlow>

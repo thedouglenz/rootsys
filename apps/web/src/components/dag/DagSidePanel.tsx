@@ -267,6 +267,8 @@ export function DagSidePanel({
                 readOnly
                 compact
                 onSelectNode={selectCanvasNode}
+                // Single click here already navigates; double-click is a no-op repeat.
+                onOpenNodeThread={selectCanvasNode}
                 onAddEdge={noop}
                 onRemoveEdge={noop}
                 onAddNode={noop}

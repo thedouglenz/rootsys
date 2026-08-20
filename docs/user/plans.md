@@ -37,6 +37,8 @@ session; **Reset layout** puts everything back.
   dependency. Dependencies that would create a cycle are refused.
 - Click an arrow and press Backspace, or use **Remove dependency**, to delete it. The
   side panel also lists a node's dependencies with remove and add controls.
+- Double-click a node to open the agent thread running it; nodes that have not started
+  yet stay put.
 
 ## Edit with a companion
 
