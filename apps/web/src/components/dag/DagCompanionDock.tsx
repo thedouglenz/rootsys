@@ -42,6 +42,7 @@ import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { toastManager } from "../ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   buildCompanionTranscript,
   DAG_COMPANION_TRANSCRIPT_LIMIT,
@@ -247,25 +248,39 @@ function DagCompanionDockBody({
             <>
               {/* A fresh thread is the recovery path when the current one's
                   agent session has lost its tool access. */}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Start a new companion conversation"
-                disabled={creating}
-                onClick={() => void create()}
-              >
-                <MessageSquarePlusIcon />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Open the companion thread"
-                onClick={() => openFullThread(companion.id)}
-              >
-                <ExternalLinkIcon />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Start a new companion conversation"
+                      disabled={creating}
+                      onClick={() => void create()}
+                    >
+                      <MessageSquarePlusIcon />
+                    </Button>
+                  }
+                />
+                <TooltipPopup side="bottom">New conversation</TooltipPopup>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Open the companion thread"
+                      onClick={() => openFullThread(companion.id)}
+                    >
+                      <ExternalLinkIcon />
+                    </Button>
+                  }
+                />
+                <TooltipPopup side="bottom">Open the full thread</TooltipPopup>
+              </Tooltip>
             </>
           ) : null}
           <Button
