@@ -4143,6 +4143,13 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function* (
         ...(ultracode ? { ultracode: true } : {}),
       };
       const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
+      // Whether the agent gets its t3-code tools is decided here, and a miss
+      // is invisible downstream: the CLI simply starts without the server.
+      yield* Effect.logInfo("claude.mcp.session", {
+        threadId: input.threadId,
+        attached: mcpSession !== undefined,
+        endpoint: mcpSession?.endpoint ?? "",
+      });
       // The attachments dir grant lets the agent Read/copy pasted images at
       // the paths ProviderService injects into the turn text, without an
       // approval prompt. It is a leaf directory holding only attachment
