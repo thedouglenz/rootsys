@@ -6,8 +6,11 @@ import {
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 
-export type McpCapability = "preview" | "dag";
+/** Toolkits a credential may unlock. Persisted with the credential row. */
+export const McpCapability = Schema.Literals(["preview", "dag"]);
+export type McpCapability = typeof McpCapability.Type;
 
 export interface McpInvocationScope {
   readonly environmentId: EnvironmentId;

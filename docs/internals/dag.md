@@ -115,6 +115,33 @@ returns. The answer is delivered later as a follow-up turn on the asking
 thread by the execution engine. This keeps the flow provider-agnostic and
 survives MCP tool timeouts.
 
+### Credentials survive a restart
+
+The bearer token that unlocks the toolkit is minted per provider session by
+`apps/server/src/mcp/McpSessionRegistry.ts` and mirrored into the
+`mcp_credentials` table (hash only, never the raw token). This matters because
+a provider CLI stores the MCP server config we hand it inside its own session
+state: Claude Code writes `mcpServers` per session, so a session resumed after
+a server restart presents the _old_ token. Before the table existed, the
+registry lost every credential on restart and each `dag_*` call from a resumed
+agent came back 401 — the agent kept working but reported that the tools did
+not exist.
+
+Two rules keep that from regressing:
+
+- Shutdown (`ProviderService.stopAll`, a layer finalizer) only drops the
+  in-memory map. Explicit revocation — `stopSession`, or a session start whose
+  capability set changed — still deletes the rows, so a thread that loses
+  `preview` cannot keep a preview-capable token.
+- The MCP endpoint URL has to stay stable across restarts, because the CLI
+  baked it into its session config alongside the token. The dev runner derives
+  ports from the worktree path, and a normal install keeps its configured port,
+  so this holds in practice; moving the server to a new port strands resumed
+  sessions regardless of the credential.
+
+Credentials still expire after a day without a sign of life, and lapsed rows
+are pruned when the registry loads.
+
 ## Execution model
 
 Engine: `apps/server/src/dag/Layers/DagExecutionEngine.ts` (service tag in

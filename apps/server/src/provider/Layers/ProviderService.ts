@@ -258,9 +258,11 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     Effect.gen(function* () {
       // rootsys: the MCP session is always attached so agents get the `dag`
       // toolkit; browser preview tools remain gated by the user's setting.
-      // `issueActiveMcpCredential` revokes the thread's previous token first,
-      // so a setting flip on session restart cannot leave a preview-capable
-      // token alive.
+      // The registry keeps the thread's existing credentials only when they
+      // grant the same capabilities — a resumed CLI presents the token it
+      // stored itself, so revoking here would strip its toolkit — and revokes
+      // them outright when the capability set changed, so a setting flip on
+      // session restart cannot leave a preview-capable token alive.
       const browserAccess = yield* agentBrowserAccessEnabled;
       const credential = yield* issueMcpCredential({
         threadId,
@@ -1134,7 +1136,10 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
       ),
     ).pipe(Effect.asVoid);
     yield* Effect.forEach(currentAdapters, ([, adapter]) => adapter.stopAll()).pipe(Effect.asVoid);
-    yield* McpSessionRegistry.revokeAllActiveMcpCredentials();
+    // Shutdown runs through here (this is a layer finalizer). Persisted
+    // credentials intentionally survive: the sessions being stopped are the
+    // ones that get resumed with their old token after a restart.
+    yield* McpSessionRegistry.forgetAllActiveMcpCredentials();
     McpProviderSession.clearAllMcpProviderSessions();
     const bindings = yield* directory.listBindings().pipe(Effect.orElseSucceed(() => []));
     yield* Effect.forEach(bindings, (binding) =>

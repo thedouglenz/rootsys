@@ -962,6 +962,9 @@ const buildAppUnderTest = (options?: {
       Layer.provideMerge(ServerSecretStore.layer),
       Layer.provide(workspaceAndProjectServicesLayer),
       Layer.provideMerge(FetchHttpClient.layer),
+      // The MCP session registry persists issued credentials, so the routes
+      // layer now needs a SQL client of its own.
+      Layer.provide(SqlitePersistenceMemory),
       Layer.provide(layerConfig),
     );
 
