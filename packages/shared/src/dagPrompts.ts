@@ -130,6 +130,11 @@ export function buildDagQuestionAnswerMessage(input: {
     : `Answer to your question "${input.prompt}":\n\n${input.answer}\n\nContinue the node. Remember to call dag_set_node_status when you finish.`;
 }
 
+/** Continuation message for a still-running node when a paused DAG resumes. */
+export function buildDagResumeMessage(): string {
+  return `Execution has resumed. Continue this node from where you left off — re-read your earlier progress above if needed, verify the acceptance criteria, and report with dag_set_node_status when finished (or dag_ask_user if blocked).`;
+}
+
 /** Follow-up nudge when an executor turn settled without a status report. */
 export function buildDagNudgeMessage(): string {
   return `Your previous turn ended without reporting the node's status. If the work is complete and verified, call dag_set_node_status with status="done" and a summary now. If you are blocked on the human, call dag_ask_user. Otherwise continue the work and report when finished.`;

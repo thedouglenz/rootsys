@@ -6,19 +6,21 @@ import {
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
+  ThreadId,
   TurnId,
   type OrchestrationCommand,
   type OrchestrationEvent,
-  type ThreadId,
 } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 
 import { ServerConfig } from "../../config.ts";
 import { OrchestrationEngineLive } from "../../orchestration/Layers/OrchestrationEngine.ts";
@@ -241,8 +243,12 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
       expect(messageText(answerTurn!)).toContain("postgres");
       expect((yield* graphOf).nodes.find((n) => n.nodeId === nodeA)!.status).toBe("running");
 
-      // Executor ends its turn without reporting → one nudge turn, still running.
+      // Executor runs a full-length turn, then ends it without reporting →
+      // one nudge turn, still running. (Drain before adjusting so the engine
+      // records the turn start at the pre-adjust clock.)
       yield* settle(threadA, "running");
+      yield* engine.drain;
+      yield* TestClock.adjust(Duration.seconds(60));
       yield* settle(threadA, "idle");
       yield* engine.drain;
       const afterNudge = yield* Queue.takeAll(events);
@@ -281,11 +287,16 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
       // Upstream outcome is fed to the downstream prompt.
       expect(messageText(promptB!)).toContain("a done");
 
-      // B's session errors twice-without-report path: first idle → nudge, second idle → failed.
+      // B's twice-without-report path (full-length turns): first idle →
+      // nudge, second idle → failed.
       yield* settle(b.threadId!, "running");
+      yield* engine.drain;
+      yield* TestClock.adjust(Duration.seconds(60));
       yield* settle(b.threadId!, "idle");
       yield* engine.drain;
       yield* settle(b.threadId!, "running");
+      yield* engine.drain;
+      yield* TestClock.adjust(Duration.seconds(60));
       yield* settle(b.threadId!, "idle");
       yield* engine.drain;
       graph = yield* graphOf;
@@ -319,6 +330,181 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
       ]);
       yield* engine.drain;
       expect((yield* graphOf).dag.status).toBe("completed");
+    }),
+  );
+});
+
+it.layer(TestLayer)("DagExecutionEngine rapid settle", (it) => {
+  it.effect("pauses the DAG on a rapid settle, then a resume sends a continuation turn", () =>
+    Effect.gen(function* () {
+      const engine = yield* DagExecutionEngine;
+      const events = yield* recordEvents;
+      yield* engine.start();
+
+      yield* dispatchAll([
+        {
+          type: "project.create",
+          commandId: cmd(),
+          projectId,
+          title: "Project",
+          workspaceRoot: "/tmp/rootsys-dag-engine-test",
+          defaultModelSelection: modelSelection,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.create",
+          commandId: cmd(),
+          dagId,
+          title: "Plan",
+          primaryProjectId: projectId,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          title: "A",
+          description: "do a",
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeB,
+          title: "B",
+          description: "do b",
+          dependsOn: [nodeA],
+        },
+        { type: "dag.status.set", commandId: cmd(), dagId, status: "running" },
+      ]);
+      yield* engine.drain;
+      let graph = yield* graphOf;
+      const threadA = graph.nodes.find((n) => n.nodeId === nodeA)!.threadId!;
+
+      // Turn starts, then settles well inside the rapid window → circuit
+      // breaker: DAG paused, node still running with its thread bound, and
+      // crucially no nudge turn (that would burn more provider quota).
+      yield* settle(threadA, "running");
+      yield* engine.drain;
+      yield* TestClock.adjust(Duration.seconds(5));
+      yield* Queue.takeAll(events);
+      yield* settle(threadA, "idle");
+      yield* engine.drain;
+      graph = yield* graphOf;
+      expect(graph.dag.status).toBe("paused");
+      const a = graph.nodes.find((n) => n.nodeId === nodeA)!;
+      expect(a.status).toBe("running");
+      expect(a.threadId).toBe(threadA);
+      const afterRapid = yield* Queue.takeAll(events);
+      expect(afterRapid.filter((e) => e.type === "thread.message-sent")).toHaveLength(0);
+
+      // Resuming the DAG sends a continuation turn on the bound thread.
+      yield* dispatchAll([{ type: "dag.status.set", commandId: cmd(), dagId, status: "running" }]);
+      yield* engine.drain;
+      const afterResume = yield* Queue.takeAll(events);
+      const resumeTurn = afterResume.find(
+        (e) => e.type === "thread.message-sent" && e.aggregateId === threadA,
+      );
+      expect(resumeTurn).toBeDefined();
+      expect(messageText(resumeTurn!)).toContain("resumed");
+      graph = yield* graphOf;
+      expect(graph.dag.status).toBe("running");
+      expect(graph.nodes.find((n) => n.nodeId === nodeA)!.status).toBe("running");
+
+      // The resumed executor reports done → normal flow continues: B launches.
+      yield* settle(threadA, "running");
+      yield* dispatchAll([
+        {
+          type: "dag.node.status.set",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          status: "done",
+          summary: "a done",
+        },
+      ]);
+      yield* engine.drain;
+      graph = yield* graphOf;
+      const b = graph.nodes.find((n) => n.nodeId === nodeB)!;
+      expect(b.status).toBe("running");
+      expect(b.threadId).not.toBeNull();
+      expect(b.threadId).not.toBe(threadA);
+    }),
+  );
+});
+
+it.layer(TestLayer)("DagExecutionEngine startup backstop", (it) => {
+  it.effect("settles executor threads of nodes that finished before boot", () =>
+    Effect.gen(function* () {
+      const engine = yield* DagExecutionEngine;
+      const threadId = ThreadId.make("thread-backstop");
+
+      // A node done and its executor idle, all before the engine starts —
+      // e.g. finished under an older server or while this one was down.
+      yield* dispatchAll([
+        {
+          type: "project.create",
+          commandId: cmd(),
+          projectId,
+          title: "Project",
+          workspaceRoot: "/tmp/rootsys-dag-engine-test",
+          defaultModelSelection: modelSelection,
+          createdAt: NOW,
+        },
+        {
+          type: "thread.create",
+          commandId: cmd(),
+          threadId,
+          projectId,
+          title: "Plan: A",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          dagLink: { dagId, nodeId: nodeA, role: "executor" },
+          createdAt: NOW,
+        },
+        {
+          type: "dag.create",
+          commandId: cmd(),
+          dagId,
+          title: "Plan",
+          primaryProjectId: projectId,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          title: "A",
+          description: "do a",
+        },
+        {
+          type: "dag.node.status.set",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          status: "running",
+          threadId,
+        },
+        {
+          type: "dag.node.status.set",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          status: "done",
+          summary: "done earlier",
+        },
+      ]);
+      yield* settle(threadId, "idle");
+      expect((yield* threadShellOf(threadId)).settledAt).toBeNull();
+
+      yield* engine.start();
+      yield* engine.drain;
+      expect((yield* threadShellOf(threadId)).settledAt).not.toBeNull();
     }),
   );
 });

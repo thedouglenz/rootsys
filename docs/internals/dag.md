@@ -130,13 +130,29 @@ project.defaultModelSelection`. If none resolves (or the provider instance is
   inside the node; `TurnStrategy` is the fallback for every provider.
 - Completion: the executor reports via `dag_set_node_status done` with a
   summary (fed into downstream prompts). If the thread's session settles
-  (`idle/ready/interrupted/stopped`, after having been seen `running`) while the
-  node is still `running`, the engine sends one nudge turn; a second silent
-  settle marks the node `failed`. A session `error` fails the node at once.
+  (`idle/ready/interrupted/stopped`, after having been seen `running`) while
+  the node is still `running` and the turn ran at least `RAPID_TURN_SETTLE_MS`
+  (60s), the engine sends one nudge turn; a second silent settle marks the
+  node `failed`. A session `error` after a full-length turn fails the node at
+  once.
+- Circuit breaker: a turn that settles in under `RAPID_TURN_SETTLE_MS` never
+  did node work — the provider refused it (rate limit, subscription session
+  cap, auth failure). Nudging would burn more quota, so the engine pauses the
+  DAG and leaves the node `running` with its thread bound. There is no
+  retry/backoff machinery yet; classifying transient vs. persistent provider
+  failures (and auto-resuming after a limit window) is future work.
+- Resume: when a DAG is set back to `running`, before re-evaluating the
+  frontier the engine sends a continuation turn (`buildDagResumeMessage`) on
+  every still-`running` node whose bound thread's session has settled. This
+  un-sticks circuit-breaker pauses and pauses that outlived a provider limit
+  window.
 - Auto-settle: once a node is `done`/`skipped` and its executor thread's
   session has settled, the engine dispatches `thread.settle` so the thread
   leaves the active list (either ordering: report-then-idle, or a late mark
-  after the session already went idle).
+  after the session already went idle). As a startup backstop, `start()`
+  queues one pass over all DAGs that settles executor threads of already
+  `done`/`skipped` nodes — covering work finished while the server was down
+  or before auto-settle existed.
 - Questions: `dag_ask_user` blocks the node (decider). On
   `dag.question-answered` the decider unblocks the node when no other question
   on it is open, and the engine sends the answer as a new turn on the asking

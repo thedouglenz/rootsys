@@ -11,9 +11,14 @@ import {
   ThreadId,
   topologicalDagOrder,
 } from "@t3tools/contracts";
-import { buildDagNudgeMessage, buildDagQuestionAnswerMessage } from "@t3tools/shared/dagPrompts";
+import {
+  buildDagNudgeMessage,
+  buildDagQuestionAnswerMessage,
+  buildDagResumeMessage,
+} from "@t3tools/shared/dagPrompts";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
 import * as Cause from "effect/Cause";
+import * as Clock from "effect/Clock";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -44,8 +49,17 @@ const SETTLED_SESSION_STATUSES: ReadonlySet<string> = new Set([
   "stopped",
 ]);
 
+/**
+ * A turn that settles faster than this ran too briefly to have done node
+ * work: the provider most likely refused the turn (rate limit, subscription
+ * session cap, auth failure). Nudging would burn more quota, so the engine
+ * pauses the DAG instead and leaves the node running for a later resume.
+ */
+export const RAPID_TURN_SETTLE_MS = 60_000;
+
 type EngineInput =
   | { readonly kind: "schedule"; readonly dagId: DagId }
+  | { readonly kind: "startup-settle" }
   | { readonly kind: "event"; readonly event: OrchestrationEvent };
 
 export interface DagExecutionEngineOptions {
@@ -71,6 +85,8 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
     const runningThreads = new Set<ThreadId>();
     // Threads already nudged once for ending a turn without a report.
     const nudgedThreads = new Set<ThreadId>();
+    // When each executor turn was seen running, for the rapid-settle breaker.
+    const turnStartedAt = new Map<ThreadId, number>();
 
     const dispatch = (command: Parameters<typeof orchestrationEngine.dispatch>[0]) =>
       orchestrationEngine.dispatch(command).pipe(
@@ -333,17 +349,81 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         });
       });
 
+    /**
+     * A DAG just went `running` again. Any node still `running` whose bound
+     * thread's session has settled is mid-flight work that stopped without a
+     * report — a circuit-breaker pause, or a pause that outlived a provider
+     * limit window. Send a continuation turn so the executor picks the node
+     * back up.
+     */
+    const resumeRunningNodes = (dagId: DagId) =>
+      Effect.gen(function* () {
+        const graphOption = yield* readGraph(dagId);
+        if (Option.isNone(graphOption)) return;
+        const graph = graphOption.value;
+        if (graph.dag.status !== "running") return;
+        for (const node of graph.nodes) {
+          if (node.status !== "running" || node.threadId === null) continue;
+          const threadId = node.threadId;
+          const shell = yield* snapshotQuery
+            .getThreadShellById(threadId)
+            .pipe(Effect.orElseSucceed(() => Option.none()));
+          if (Option.isNone(shell)) continue;
+          const status = shell.value.session?.status;
+          if (status === undefined || !SETTLED_SESSION_STATUSES.has(status)) continue;
+          const modelSelection = yield* resolveModelSelection(graph, node);
+          if (modelSelection === null) continue;
+          runningThreads.delete(threadId);
+          nudgedThreads.delete(threadId);
+          turnStartedAt.delete(threadId);
+          yield* sendTurn({
+            threadId,
+            text: buildDagResumeMessage(),
+            modelSelection,
+            interactionMode: "default",
+          });
+          yield* Effect.logInfo("dag engine resumed executor thread", {
+            dagId,
+            nodeId: node.nodeId,
+            threadId,
+          });
+        }
+      });
+
+    /**
+     * Startup backstop: settle executor threads of nodes that finished while
+     * the server was down (or before auto-settle existed). Runs once per boot
+     * through the worker so `drain` covers it.
+     */
+    const settleFinishedExecutors = Effect.gen(function* () {
+      const shells = yield* snapshotQuery
+        .listDagShells({ includeArchived: true })
+        .pipe(Effect.orElseSucceed(() => []));
+      for (const shell of shells) {
+        const graphOption = yield* readGraph(shell.dagId);
+        if (Option.isNone(graphOption)) continue;
+        for (const node of graphOption.value.nodes) {
+          const threadId = node.threadId ?? node.outcome?.threadId ?? null;
+          if (threadId === null || !DAG_NODE_SATISFIED_STATUSES.has(node.status)) continue;
+          yield* settleExecutorThread(threadId);
+        }
+      }
+    });
+
     const handleSessionSet = (event: Extract<OrchestrationEvent, { type: "thread.session-set" }>) =>
       Effect.gen(function* () {
         const { threadId, session } = event.payload;
         if (session.status === "running") {
           runningThreads.add(threadId);
+          turnStartedAt.set(threadId, yield* Clock.currentTimeMillis);
           return;
         }
         if (!SETTLED_SESSION_STATUSES.has(session.status) || !runningThreads.has(threadId)) {
           return;
         }
         runningThreads.delete(threadId);
+        const startedAt = turnStartedAt.get(threadId);
+        turnStartedAt.delete(threadId);
         const bound = yield* snapshotQuery
           .findDagNodeByThreadId(threadId)
           .pipe(Effect.orElseSucceed(() => Option.none()));
@@ -356,6 +436,22 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
           return;
         }
         if (node.status !== "running") return;
+        // Circuit breaker: a turn that ended almost immediately never did node
+        // work — the provider refused it (rate limit, session cap, auth). A
+        // nudge would just burn more quota, so pause the whole DAG and keep
+        // the node running with its thread bound; resuming the DAG sends a
+        // continuation turn on that thread.
+        const now = yield* Clock.currentTimeMillis;
+        const elapsedMs = startedAt === undefined ? Number.POSITIVE_INFINITY : now - startedAt;
+        if (elapsedMs < RAPID_TURN_SETTLE_MS) {
+          nudgedThreads.delete(threadId);
+          yield* setDagStatus(dagId, "paused");
+          yield* Effect.logWarning(
+            "dag engine paused DAG: executor turn ended almost immediately (provider unavailable or rate-limited?)",
+            { dagId, nodeId: node.nodeId, threadId, elapsedMs },
+          );
+          return;
+        }
         if (session.status === "error") {
           yield* setNodeStatus({
             dagId,
@@ -393,10 +489,16 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         if (input.kind === "schedule") {
           return yield* schedule(input.dagId);
         }
+        if (input.kind === "startup-settle") {
+          return yield* settleFinishedExecutors;
+        }
         const { event } = input;
         switch (event.type) {
           case "dag.status-set":
-            if (event.payload.status === "running") yield* schedule(event.payload.dagId);
+            if (event.payload.status === "running") {
+              yield* resumeRunningNodes(event.payload.dagId);
+              yield* schedule(event.payload.dagId);
+            }
             return;
           case "dag.node-status-set": {
             // Late completion (e.g. the user marks a node done after its
@@ -437,6 +539,8 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
 
     const start: DagExecutionEngineShape["start"] = Effect.fn("DagExecutionEngine.start")(
       function* () {
+        // Queued, not awaited: boot tidying must not delay start.
+        yield* worker.enqueue({ kind: "startup-settle" });
         yield* forkParked(
           Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
             switch (event.type) {
