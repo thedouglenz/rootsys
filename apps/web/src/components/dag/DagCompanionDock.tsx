@@ -49,6 +49,7 @@ import {
   DEFAULT_DAG_COMPANION_DOCK_STATE,
   selectCompanionThread,
 } from "./dagCompanion";
+import { DagModelPicker } from "./DagModelPicker";
 import { useDagProviders } from "./useDagProviders";
 import { useDagThreadKickoff } from "./useDagThreadKickoff";
 
@@ -136,6 +137,9 @@ function DagCompanionDockBody({
 
   const providers = useDagProviders(environmentId);
   const modelSelection = providers.resolveSelection(fallbackModelSelection);
+  const updateThreadMetadata = useAtomCommand(threadEnvironment.updateMetadata, {
+    reportFailure: false,
+  });
   const { startCompanion } = useDagThreadKickoff();
   const [creating, setCreating] = useState(false);
   const creatingRef = useRef(false);
@@ -220,8 +224,20 @@ function DagCompanionDockBody({
           />
           <span className="shrink-0 text-xs font-medium">Companion</span>
           {companion !== null ? (
-            <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-              {companion.modelSelection.model}
+            // The companion inherited the plan default when its thread was
+            // created; letting it be repointed here matters when that model
+            // is rate-limited, which is exactly when you want to talk to it.
+            <span className="flex min-w-0 flex-1 items-center">
+              <DagModelPicker
+                environmentId={environmentId}
+                value={companion.modelSelection}
+                onChange={(selection) => {
+                  void updateThreadMetadata({
+                    environmentId,
+                    input: { threadId: companion.id, modelSelection: selection },
+                  });
+                }}
+              />
             </span>
           ) : (
             <span className="flex-1" />
