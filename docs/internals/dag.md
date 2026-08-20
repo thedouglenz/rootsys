@@ -210,3 +210,6 @@ for all three agent roles: `packages/shared/src/dagPrompts.ts`.
   is `buildDagPlannerBrief` / `buildDagCompanionBrief`, started by the client
   with the normal `thread.turn.start` + `bootstrap.createThread`; no adapter
   or server changes are involved.
+- Every engine turn syncs the executor thread's own `modelSelection` to the
+  model the turn runs on, so a per-node override is reflected in the thread's
+  picker rather than leaving the UI contradicting what is executing.

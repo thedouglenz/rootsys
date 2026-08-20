@@ -174,6 +174,31 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         });
       });
 
+    const sameModel = (left: ModelSelection, right: ModelSelection) =>
+      left.instanceId === right.instanceId && left.model === right.model;
+
+    /**
+     * Keep the thread's own model in step with the node's. A turn carries its
+     * model, so execution already follows a node-level override — but the
+     * thread record is what the composer's picker shows and what a message
+     * the user types into that thread would use. Leaving it stale makes the
+     * UI contradict what is actually running.
+     */
+    const syncThreadModel = (threadId: ThreadId, modelSelection: ModelSelection) =>
+      Effect.gen(function* () {
+        const shell = yield* snapshotQuery
+          .getThreadShellById(threadId)
+          .pipe(Effect.orElseSucceed(() => Option.none()));
+        if (Option.isNone(shell)) return;
+        if (sameModel(shell.value.modelSelection, modelSelection)) return;
+        yield* dispatch({
+          type: "thread.meta.update",
+          commandId: yield* serverCommandId("thread-model"),
+          threadId,
+          modelSelection,
+        });
+      });
+
     const sendTurn = (input: {
       readonly threadId: ThreadId;
       readonly text: string;
@@ -181,6 +206,7 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
       readonly interactionMode: "default" | "plan";
     }) =>
       Effect.gen(function* () {
+        yield* syncThreadModel(input.threadId, input.modelSelection);
         yield* dispatch({
           type: "thread.turn.start",
           commandId: yield* serverCommandId("turn"),

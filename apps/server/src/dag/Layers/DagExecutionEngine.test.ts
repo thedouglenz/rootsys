@@ -644,3 +644,65 @@ it.layer(TestLayer)("DagExecutionEngine startup reconcile", (it) => {
     }),
   );
 });
+
+it.layer(TestLayer)("DagExecutionEngine node model override", (it) => {
+  it.effect("updates the executor thread's own model when a node overrides it", () =>
+    Effect.gen(function* () {
+      const engine = yield* DagExecutionEngine;
+      yield* engine.start();
+      yield* dispatchAll([
+        {
+          type: "project.create",
+          commandId: cmd(),
+          projectId,
+          title: "Project",
+          workspaceRoot: "/tmp/rootsys-dag-engine-model-test",
+          defaultModelSelection: modelSelection,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.create",
+          commandId: cmd(),
+          dagId,
+          title: "Plan",
+          primaryProjectId: projectId,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          title: "A",
+          description: "do a",
+        },
+        { type: "dag.status.set", commandId: cmd(), dagId, status: "running" },
+      ]);
+      yield* engine.drain;
+
+      const threadId = (yield* graphOf).nodes.find((n) => n.nodeId === nodeA)!.threadId!;
+      // Launched on the plan default.
+      expect((yield* threadShellOf(threadId)).modelSelection.model).toBe(modelSelection.model);
+
+      // The user retargets the node at a different model, then resumes.
+      const override = { instanceId, model: "gpt-5-codex" } as const;
+      yield* dispatchAll([
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          modelSelection: override,
+        },
+      ]);
+      yield* settle(threadId, "running");
+      yield* TestClock.adjust(Duration.minutes(2));
+      yield* settle(threadId, "idle");
+      yield* engine.drain;
+
+      // The nudge turn goes out on the override, and the thread record follows
+      // so the composer cannot claim the old model.
+      expect((yield* threadShellOf(threadId)).modelSelection.model).toBe(override.model);
+    }),
+  );
+});
