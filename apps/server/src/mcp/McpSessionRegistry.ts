@@ -180,6 +180,12 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
     httpServer.address._tag === "TcpAddress"
       ? `http://${getHttpMcpEndpointHost(httpServer.address.hostname)}:${httpServer.address.port}/mcp`
       : "http://127.0.0.1/mcp";
+  // Every agent's tool access depends on this URL being right, and a wrong one
+  // fails silently: the CLI simply lists no t3-code tools. Log it once.
+  yield* Effect.logInfo("mcp credential endpoint resolved", {
+    endpoint,
+    addressKind: httpServer.address._tag,
+  });
 
   /**
    * A credential store that cannot be written is a degraded restart story, not

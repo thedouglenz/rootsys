@@ -227,7 +227,7 @@ const McpTransportLive = McpServer.layerHttp({
 
 // rootsys: `dag_*` tools ride the same MCP transport; per-session capability
 // gating happens in the handlers (McpInvocationContext.capabilities).
-const DagToolkitRegistrationLive = McpServer.toolkit(DagToolkit).pipe(
+export const DagToolkitRegistrationLive = McpServer.toolkit(DagToolkit).pipe(
   Layer.provide(DagToolkitHandlersLive),
 );
 
