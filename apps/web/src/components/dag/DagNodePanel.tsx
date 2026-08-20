@@ -6,21 +6,31 @@ import {
   DagNodeId,
   dagEdgeWouldCreateCycle,
   type EnvironmentId,
+  type ModelSelection,
 } from "@t3tools/contracts";
 import { Link } from "@tanstack/react-router";
-import { ExternalLinkIcon, XIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ExternalLinkIcon, MoreHorizontalIcon, XIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { requestConfirmDialog } from "../../confirmDialog";
+import { useProjects } from "../../state/entities";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { ScrollArea } from "../ui/scroll-area";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { Textarea } from "../ui/textarea";
-import { buildDagNodeViews, upstreamNodeIds } from "./dagModel";
+import {
+  buildDagNodeViews,
+  dagBulkModelTargets,
+  describeDagNodeModelSource,
+  resolveDagNodeModel,
+  upstreamNodeIds,
+} from "./dagModel";
+import { DagModelPicker } from "./DagModelPicker";
 import { DagNodeStatusBadge } from "./DagStatusBadge";
 import type { DagDispatch } from "./useDagDispatch";
 
@@ -51,6 +61,8 @@ export interface DagNodePanelProps {
   readonly readOnly: boolean;
   readonly dispatch: DagDispatch;
   readonly onClose: () => void;
+  /** Bump to scroll the Model row into view and focus its picker. */
+  readonly focusModelToken?: number;
 }
 
 export function DagNodePanel({
@@ -60,6 +72,7 @@ export function DagNodePanel({
   readOnly,
   dispatch,
   onClose,
+  focusModelToken = 0,
 }: DagNodePanelProps) {
   const dagId = graph.dag.dagId;
   const [title, setTitle] = useDraftField(node.title);
@@ -75,6 +88,39 @@ export function DagNodePanel({
     () => new Map(graph.nodes.map((candidate) => [candidate.nodeId, candidate.title] as const)),
     [graph.nodes],
   );
+  const projects = useProjects();
+  const projectDefaultModel = useMemo(() => {
+    const projectId = node.projectId ?? graph.dag.primaryProjectId;
+    if (projectId === null) return null;
+    return (
+      projects.find(
+        (project) => project.environmentId === environmentId && project.id === projectId,
+      )?.defaultModelSelection ?? null
+    );
+  }, [environmentId, graph.dag.primaryProjectId, node.projectId, projects]);
+  const model = useMemo(
+    () =>
+      resolveDagNodeModel({
+        nodeModelSelection: node.modelSelection,
+        dagDefaultModelSelection: graph.dag.defaultModelSelection,
+        projectDefaultModelSelection: projectDefaultModel,
+      }),
+    [graph.dag.defaultModelSelection, node.modelSelection, projectDefaultModel],
+  );
+  const bulkTargets = useMemo(
+    () => (model.selection === null ? [] : dagBulkModelTargets(graph, model.selection)),
+    [graph, model.selection],
+  );
+
+  const modelRowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusModelToken === 0) return;
+    const row = modelRowRef.current;
+    if (row === null) return;
+    row.scrollIntoView({ block: "center" });
+    row.querySelector("button")?.focus();
+  }, [focusModelToken]);
+
   const addableDependencies = useMemo(
     () =>
       graph.nodes.filter(
@@ -99,6 +145,30 @@ export function DagNodePanel({
     const next = acceptance.trim().length === 0 ? null : acceptance;
     if (next === node.acceptance) return;
     void dispatch({ type: "dag.node.upsert", dagId, nodeId: node.nodeId, acceptance: next });
+  };
+
+  const setModelSelection = (modelSelection: ModelSelection | null) =>
+    void dispatch({ type: "dag.node.upsert", dagId, nodeId: node.nodeId, modelSelection });
+
+  // One dispatch per node, in order, through the same helper the rest of the
+  // panel uses: the command atom is serial per plan, so a partial failure
+  // stops the run instead of racing.
+  const applyModelToPendingNodes = async () => {
+    const selection = model.selection;
+    if (selection === null || bulkTargets.length === 0) return;
+    const confirmed = await requestConfirmDialog(
+      `Use this model for ${bulkTargets.length} pending node${bulkTargets.length === 1 ? "" : "s"}?\nNodes with their own model are overwritten. Running and finished nodes are untouched.`,
+    );
+    if (confirmed === false) return;
+    for (const nodeId of bulkTargets) {
+      const ok = await dispatch({
+        type: "dag.node.upsert",
+        dagId,
+        nodeId,
+        modelSelection: selection,
+      });
+      if (!ok) return;
+    }
   };
 
   const setStatus = (status: DagNode["status"], threadId?: null) =>
@@ -233,6 +303,58 @@ export function DagNodePanel({
                 ))}
               </SelectPopup>
             </Select>
+          </div>
+
+          <div ref={modelRowRef} className="grid gap-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium">Model</p>
+              <div className="flex min-w-0 items-center gap-1">
+                <DagModelPicker
+                  environmentId={environmentId}
+                  value={node.modelSelection}
+                  fallback={model.inherited}
+                  disabled={readOnly}
+                  onChange={setModelSelection}
+                />
+                {readOnly || bulkTargets.length === 0 ? null : (
+                  <Menu>
+                    <MenuTrigger
+                      render={
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="shrink-0"
+                          aria-label="More model actions"
+                        />
+                      }
+                    >
+                      <MoreHorizontalIcon />
+                    </MenuTrigger>
+                    <MenuPopup align="end">
+                      <MenuItem onClick={() => void applyModelToPendingNodes()}>
+                        Use for {bulkTargets.length} pending node
+                        {bulkTargets.length === 1 ? "" : "s"}
+                      </MenuItem>
+                    </MenuPopup>
+                  </Menu>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {describeDagNodeModelSource(model.source)}
+              {model.source === "node" && !readOnly ? (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    className="rounded-xs text-foreground underline-offset-2 hover:underline"
+                    onClick={() => setModelSelection(null)}
+                  >
+                    Use plan default
+                  </button>
+                </>
+              ) : null}
+            </p>
           </div>
 
           <div className="grid gap-1.5">

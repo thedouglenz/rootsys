@@ -57,6 +57,28 @@ Run is unavailable until the plan has at least one node, a project, and a model 
 with. **Pause** stops new nodes from starting; in-flight work finishes. **Resume**
 continues.
 
+The plan can also pause itself — most often when the model refuses a turn because you
+hit a usage limit, but also when a node has no model or no project. When it does, a
+banner above the canvas (and in the thread's **Plan** panel) says why, names the parked
+node, quotes what the provider said, and offers **Change model**. Resuming within ten
+minutes of a refusal asks you to confirm first, since the same model is about to be
+tried again.
+
+## Choosing models
+
+A node runs with the first model it finds: **its own**, else the **plan default**, else
+the **project default**. The plan default sits in the plan header; the project default
+comes from the project's settings.
+
+- Open a node and use the **Model** row to give that node its own model. The line under
+  the picker says where the current model comes from, so you can see what a node
+  inherits before you change it.
+- **Use plan default** on a node with its own model hands it back to the plan.
+- The menu beside a node's picker offers **Use for N pending nodes**, which applies the
+  node's model to every pending node in the plan after a confirmation. Running,
+  blocked, and finished nodes keep what they have — retry a node to move it back to
+  pending first.
+
 ## Threads that belong to a plan
 
 Every thread a plan starts — the planner, a companion, and each node's executor —

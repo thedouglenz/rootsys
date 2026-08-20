@@ -23,6 +23,7 @@ import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar"
 import { DagHeader } from "./DagHeader";
 import { mintDagNodeId } from "./dagModel";
 import { DagNodePanel } from "./DagNodePanel";
+import { DagPauseBanner } from "./DagPauseBanner";
 import { DagQuestionInbox } from "./DagQuestionInbox";
 import { DagTimeline } from "./DagTimeline";
 import { useDagDispatch } from "./useDagDispatch";
@@ -102,6 +103,23 @@ export function DagPage({
     () => graph?.nodes.find((node) => node.nodeId === selectedNodeId) ?? null,
     [graph, selectedNodeId],
   );
+  // The pause banner's "Change model" opens the parked node's panel on its
+  // model picker, or the plan's default picker when no node is named. The
+  // request is pinned to that node so picking another one lands normally.
+  const [modelFocus, setModelFocus] = useState<{ nodeId: DagNodeId; token: number } | null>(null);
+  const [planModelFocus, setPlanModelFocus] = useState(0);
+  const selectNode = useCallback((nodeId: DagNodeId | null) => {
+    setModelFocus(null);
+    setSelectedNodeId(nodeId);
+  }, []);
+  const focusModelFor = useCallback((nodeId: DagNodeId | null) => {
+    if (nodeId === null) {
+      setPlanModelFocus((token) => token + 1);
+      return;
+    }
+    setSelectedNodeId(nodeId);
+    setModelFocus((current) => ({ nodeId, token: (current?.token ?? 0) + 1 }));
+  }, []);
   const goToList = useCallback(() => void navigate({ to: "/plans" }), [navigate]);
   // Double-click on the canvas jumps to the node's executor thread; nodes that
   // have not started yet keep the panel open and do nothing.
@@ -121,8 +139,8 @@ export function DagPage({
     if (graph === null) return;
     const nodeId = mintDagNodeId("New node");
     const ok = await dispatch({ type: "dag.node.upsert", dagId, nodeId, title: "New node" });
-    if (ok) setSelectedNodeId(nodeId);
-  }, [dagId, dispatch, graph]);
+    if (ok) selectNode(nodeId);
+  }, [dagId, dispatch, graph, selectNode]);
   const addEdge = useCallback(
     (fromNodeId: DagNodeId, toNodeId: DagNodeId) =>
       void dispatch({ type: "dag.edge.add", dagId, fromNodeId, toNodeId }),
@@ -198,9 +216,16 @@ export function DagPage({
         projects={projects}
         dispatch={dispatch}
         onDeleted={goToList}
+        focusDefaultModelToken={planModelFocus}
       />
       <div className="flex min-h-0 flex-1">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <DagPauseBanner
+            environmentId={environmentId}
+            graph={graph}
+            onChangeModel={readOnly ? null : focusModelFor}
+            className="mx-3 mt-2"
+          />
           <div className="min-h-0 flex-1">
             <Suspense
               fallback={
@@ -213,7 +238,7 @@ export function DagPage({
                 graph={graph}
                 selectedNodeId={selectedNodeId}
                 readOnly={readOnly}
-                onSelectNode={setSelectedNodeId}
+                onSelectNode={selectNode}
                 onOpenNodeThread={openNodeThread}
                 onAddEdge={addEdge}
                 onRemoveEdge={removeEdge}
@@ -236,7 +261,8 @@ export function DagPage({
             node={selectedNode}
             readOnly={readOnly}
             dispatch={dispatch}
-            onClose={() => setSelectedNodeId(null)}
+            onClose={() => selectNode(null)}
+            focusModelToken={modelFocus?.nodeId === selectedNode.nodeId ? modelFocus.token : 0}
           />
         ) : null}
       </div>

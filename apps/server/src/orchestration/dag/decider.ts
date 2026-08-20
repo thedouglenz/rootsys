@@ -170,6 +170,9 @@ export const decideDagCommand = Effect.fn("decideDagCommand")(function* ({
         payload: {
           dagId: command.dagId,
           status: command.status,
+          // Only a pause carries a reason. Any other transition records
+          // `null` so a plan that runs again cannot show a stale pause note.
+          reason: command.status === "paused" ? (command.reason ?? null) : null,
           updatedAt: unchanged ? graph.dag.updatedAt : occurredAt,
         },
       };

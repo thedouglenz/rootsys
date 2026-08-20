@@ -11,9 +11,10 @@ import {
   Trash2Icon,
   WorkflowIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { requestConfirmDialog } from "../../confirmDialog";
+import { formatRelativeTimeLabel } from "../../timestampFormat";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
@@ -21,6 +22,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { DagModelPicker } from "./DagModelPicker";
 import { DAG_RUN_BLOCKER_HINTS, resolveDagRunAction, resolveDagRunBlocker } from "./dagModel";
+import { buildDagResumeConfirmMessage, shouldConfirmDagResume } from "./dagPause";
 import { DagPlannerDialog } from "./DagPlannerDialog";
 import { DagStatusBadge } from "./DagStatusBadge";
 import { dagProgress } from "./dagThreadLink";
@@ -35,9 +37,18 @@ export interface DagHeaderProps {
   readonly projects: ReadonlyArray<EnvironmentProject>;
   readonly dispatch: DagDispatch;
   readonly onDeleted: () => void;
+  /** Bump to focus the plan's default-model picker (pause banner action). */
+  readonly focusDefaultModelToken?: number;
 }
 
-export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted }: DagHeaderProps) {
+export function DagHeader({
+  environmentId,
+  graph,
+  projects,
+  dispatch,
+  onDeleted,
+  focusDefaultModelToken = 0,
+}: DagHeaderProps) {
   const { dag } = graph;
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [companionPending, setCompanionPending] = useState(false);
@@ -66,6 +77,25 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
       : agentModel === null
         ? "No provider is available in this environment."
         : null;
+
+  const defaultModelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focusDefaultModelToken === 0) return;
+    defaultModelRef.current?.querySelector("button")?.focus();
+  }, [focusDefaultModelToken]);
+
+  // The engine parks the plan when the provider refuses a turn, and a blind
+  // Resume walks straight back into the same refusal.
+  const pauseReason = dag.status === "paused" ? (dag.pauseReason ?? null) : null;
+  const startRun = async () => {
+    if (pauseReason !== null && shouldConfirmDagResume(pauseReason, Date.now())) {
+      const confirmed = await requestConfirmDialog(
+        buildDagResumeConfirmMessage(pauseReason, formatRelativeTimeLabel(pauseReason.pausedAt)),
+      );
+      if (confirmed === false) return;
+    }
+    await dispatch({ type: "dag.status.set", dagId: dag.dagId, status: "running" });
+  };
 
   const saveTitle = () => {
     const next = titleDraft?.trim() ?? "";
@@ -119,9 +149,7 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
         type="button"
         size="sm"
         disabled={runBlocker !== null}
-        onClick={() =>
-          void dispatch({ type: "dag.status.set", dagId: dag.dagId, status: "running" })
-        }
+        onClick={() => void startRun()}
       >
         <PlayIcon />
         {runAction === "resume" ? "Resume" : "Run"}
@@ -245,7 +273,7 @@ export function DagHeader({ environmentId, graph, projects, dispatch, onDeleted 
               </SelectPopup>
             </Select>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div ref={defaultModelRef} className="flex items-center gap-1.5">
             <span className="text-xs text-muted-foreground">Model</span>
             <DagModelPicker
               environmentId={environmentId}

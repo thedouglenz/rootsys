@@ -4,7 +4,7 @@
  * panel, and list can share one notion of "ready", open-question counts,
  * and node ids.
  */
-import type { DagGraph } from "@t3tools/contracts";
+import type { DagGraph, ModelSelection } from "@t3tools/contracts";
 import { DagNodeId } from "@t3tools/contracts";
 
 export {
@@ -58,4 +58,71 @@ export function upstreamNodeIds(
   nodeId: DagNodeId,
 ): ReadonlyArray<DagNodeId> {
   return graph.edges.filter((edge) => edge.toNodeId === nodeId).map((edge) => edge.fromNodeId);
+}
+
+/** Where a node's effective model comes from, once inheritance is applied. */
+export type DagNodeModelSource = "node" | "plan" | "project" | "none";
+
+export interface DagNodeModelResolution {
+  readonly source: DagNodeModelSource;
+  readonly selection: ModelSelection | null;
+  /** What the picker should show when the node has no override of its own. */
+  readonly inherited: ModelSelection | null;
+}
+
+/**
+ * Node → plan → project, the same order the engine resolves in. Kept here so
+ * the panel can label the model it shows without guessing.
+ */
+export function resolveDagNodeModel(input: {
+  readonly nodeModelSelection: ModelSelection | null;
+  readonly dagDefaultModelSelection: ModelSelection | null;
+  readonly projectDefaultModelSelection: ModelSelection | null;
+}): DagNodeModelResolution {
+  const inherited = input.dagDefaultModelSelection ?? input.projectDefaultModelSelection;
+  if (input.nodeModelSelection !== null) {
+    return { source: "node", selection: input.nodeModelSelection, inherited };
+  }
+  if (input.dagDefaultModelSelection !== null) {
+    return { source: "plan", selection: input.dagDefaultModelSelection, inherited };
+  }
+  if (input.projectDefaultModelSelection !== null) {
+    return { source: "project", selection: input.projectDefaultModelSelection, inherited };
+  }
+  return { source: "none", selection: null, inherited };
+}
+
+const MODEL_SOURCE_HINTS: Record<DagNodeModelSource, string> = {
+  node: "Set for this node.",
+  plan: "Inherited from the plan default.",
+  project: "Inherited from the project default.",
+  none: "No model anywhere yet — set one on the plan or here.",
+};
+
+export function describeDagNodeModelSource(source: DagNodeModelSource): string {
+  return MODEL_SOURCE_HINTS[source];
+}
+
+export function isSameModelSelection(a: ModelSelection | null, b: ModelSelection | null): boolean {
+  if (a === null || b === null) return a === b;
+  return (
+    a.instanceId === b.instanceId &&
+    a.model === b.model &&
+    JSON.stringify(a.options ?? null) === JSON.stringify(b.options ?? null)
+  );
+}
+
+/**
+ * Pending nodes that would actually change if `selection` were applied to the
+ * whole plan. Running, blocked, and finished nodes are left alone.
+ */
+export function dagBulkModelTargets(
+  graph: Pick<DagGraph, "nodes">,
+  selection: ModelSelection,
+): ReadonlyArray<DagNodeId> {
+  return graph.nodes
+    .filter(
+      (node) => node.status === "pending" && !isSameModelSelection(node.modelSelection, selection),
+    )
+    .map((node) => node.nodeId);
 }

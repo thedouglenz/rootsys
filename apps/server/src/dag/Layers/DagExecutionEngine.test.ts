@@ -3,6 +3,7 @@ import {
   DagId,
   DagNodeId,
   DagQuestionId,
+  MessageId,
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -124,6 +125,29 @@ const threadShellOf = (threadId: ThreadId) =>
 
 const messageText = (event: OrchestrationEvent): string =>
   event.type === "thread.message-sent" ? event.payload.text : "";
+
+/** Seed a completed assistant message so pause reasons can quote the provider. */
+const sayAssistant = (threadId: ThreadId, text: string) =>
+  Effect.gen(function* () {
+    const messageId = MessageId.make(`msg-${++commandCounter}`);
+    yield* dispatchAll([
+      {
+        type: "thread.message.assistant.delta",
+        commandId: cmd(),
+        threadId,
+        messageId,
+        delta: text,
+        createdAt: NOW,
+      },
+      {
+        type: "thread.message.assistant.complete",
+        commandId: cmd(),
+        threadId,
+        messageId,
+        createdAt: NOW,
+      },
+    ]);
+  });
 
 const settle = (threadId: ThreadId, status: "running" | "idle" | "error") =>
   Effect.gen(function* () {
@@ -388,11 +412,19 @@ it.layer(TestLayer)("DagExecutionEngine rapid settle", (it) => {
       yield* settle(threadA, "running");
       yield* engine.drain;
       yield* TestClock.adjust(Duration.seconds(5));
+      // What a rate-limited provider actually leaves behind on the thread.
+      yield* sayAssistant(threadA, "5-hour limit reached. Try again at 3pm.");
       yield* Queue.takeAll(events);
       yield* settle(threadA, "idle");
       yield* engine.drain;
       graph = yield* graphOf;
       expect(graph.dag.status).toBe("paused");
+      // The pause explains itself: kind, the stalled node/thread, and the
+      // provider's own words.
+      expect(graph.dag.pauseReason?.kind).toBe("provider-refused");
+      expect(graph.dag.pauseReason?.nodeId).toBe(nodeA);
+      expect(graph.dag.pauseReason?.threadId).toBe(threadA);
+      expect(graph.dag.pauseReason?.providerMessage).toContain("5-hour limit reached");
       const a = graph.nodes.find((n) => n.nodeId === nodeA)!;
       expect(a.status).toBe("running");
       expect(a.threadId).toBe(threadA);
@@ -410,6 +442,8 @@ it.layer(TestLayer)("DagExecutionEngine rapid settle", (it) => {
       expect(messageText(resumeTurn!)).toContain("resumed");
       graph = yield* graphOf;
       expect(graph.dag.status).toBe("running");
+      // Running again means there is nothing to explain.
+      expect(graph.dag.pauseReason).toBeNull();
       expect(graph.nodes.find((n) => n.nodeId === nodeA)!.status).toBe("running");
 
       // The resumed executor reports done → normal flow continues: B launches.
@@ -505,6 +539,108 @@ it.layer(TestLayer)("DagExecutionEngine startup backstop", (it) => {
       yield* engine.start();
       yield* engine.drain;
       expect((yield* threadShellOf(threadId)).settledAt).not.toBeNull();
+    }),
+  );
+});
+
+it.layer(TestLayer)("DagExecutionEngine startup reconcile", (it) => {
+  it.effect("pauses a running DAG whose running node lost its executor session", () =>
+    Effect.gen(function* () {
+      const engine = yield* DagExecutionEngine;
+      const threadId = ThreadId.make("thread-dead");
+
+      // The state a crash leaves behind: DAG running, node running, and its
+      // executor thread's session already over. Nothing will ever move this
+      // plan on its own — the serial scheduler will not launch past a
+      // running node.
+      yield* dispatchAll([
+        {
+          type: "project.create",
+          commandId: cmd(),
+          projectId,
+          title: "Project",
+          workspaceRoot: "/tmp/rootsys-dag-engine-test",
+          defaultModelSelection: modelSelection,
+          createdAt: NOW,
+        },
+        {
+          type: "thread.create",
+          commandId: cmd(),
+          threadId,
+          projectId,
+          title: "Plan: A",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          dagLink: { dagId, nodeId: nodeA, role: "executor" },
+          createdAt: NOW,
+        },
+        {
+          type: "dag.create",
+          commandId: cmd(),
+          dagId,
+          title: "Plan",
+          primaryProjectId: projectId,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          title: "A",
+          description: "do a",
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeB,
+          title: "B",
+          description: "do b",
+          dependsOn: [nodeA],
+        },
+        {
+          type: "dag.node.status.set",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          status: "running",
+          threadId,
+        },
+        { type: "dag.status.set", commandId: cmd(), dagId, status: "running" },
+      ]);
+      yield* settle(threadId, "idle");
+
+      yield* engine.start();
+      yield* engine.drain;
+
+      const graph = yield* graphOf;
+      expect(graph.dag.status).toBe("paused");
+      expect(graph.dag.pauseReason?.kind).toBe("unresolved");
+      expect(graph.dag.pauseReason?.nodeId).toBe(nodeA);
+      expect(graph.dag.pauseReason?.threadId).toBe(threadId);
+      expect(graph.dag.pauseReason?.providerMessage).toContain("server stopped");
+      // The node is left alone so resuming continues that same thread rather
+      // than starting the work over.
+      const a = graph.nodes.find((n) => n.nodeId === nodeA)!;
+      expect(a.status).toBe("running");
+      expect(a.threadId).toBe(threadId);
+      expect(graph.nodes.find((n) => n.nodeId === nodeB)!.status).toBe("pending");
+
+      // Resuming sends the continuation turn before scheduling anything new.
+      const events = yield* recordEvents;
+      yield* dispatchAll([{ type: "dag.status.set", commandId: cmd(), dagId, status: "running" }]);
+      yield* engine.drain;
+      const afterResume = yield* Queue.takeAll(events);
+      const resumeTurn = afterResume.find(
+        (e) => e.type === "thread.message-sent" && e.aggregateId === threadId,
+      );
+      expect(resumeTurn).toBeDefined();
+      expect(messageText(resumeTurn!)).toContain("resumed");
+      expect((yield* graphOf).nodes.find((n) => n.nodeId === nodeB)!.status).toBe("pending");
     }),
   );
 });

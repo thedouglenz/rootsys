@@ -6,6 +6,7 @@ import {
   type DagCommand,
   type DagGraph,
   type DagNode,
+  isProviderAvailable,
   readyDagNodes,
   topologicalDagOrder,
 } from "@t3tools/contracts";
@@ -17,7 +18,14 @@ import * as Option from "effect/Option";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { OrchestrationEngineService } from "../../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
-import { DagToolError, DagToolkit, type DagContext, type DagValidationIssue } from "./tools.ts";
+import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
+import {
+  DagToolError,
+  DagToolkit,
+  type DagContext,
+  type DagModelInstance,
+  type DagValidationIssue,
+} from "./tools.ts";
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
 
@@ -104,6 +112,7 @@ export function validateDagGraph(graph: DagGraph): {
 const makeHandlers = Effect.gen(function* () {
   const engine = yield* OrchestrationEngineService;
   const snapshotQuery = yield* ProjectionSnapshotQuery;
+  const providerRegistry = yield* ProviderRegistry;
   const crypto = yield* Crypto.Crypto;
 
   const requireDagCapability = Effect.gen(function* () {
@@ -309,11 +318,29 @@ const makeHandlers = Effect.gen(function* () {
           ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
           ...(input.parallelSafe !== undefined ? { parallelSafe: input.parallelSafe } : {}),
           ...(input.executionMode !== undefined ? { executionMode: input.executionMode } : {}),
+          ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
           ...(input.dependsOn !== undefined ? { dependsOn: input.dependsOn } : {}),
         });
         const after = yield* readGraph(dagId);
         const node = yield* requireNode(after, nodeId);
         return { node, addedEdges: after.edges.slice(before) };
+      }),
+
+    dag_list_models: () =>
+      Effect.gen(function* () {
+        yield* requireDagCapability;
+        const snapshots = yield* providerRegistry.getProviders;
+        // Disabled or driver-less instances cannot run a node, so listing
+        // them would only invite an unrunnable modelSelection.
+        const instances: ReadonlyArray<DagModelInstance> = snapshots
+          .filter((snapshot) => snapshot.enabled && isProviderAvailable(snapshot))
+          .map((snapshot) => ({
+            instanceId: snapshot.instanceId,
+            driverKind: snapshot.driver,
+            displayName: snapshot.displayName ?? null,
+            models: snapshot.models.map((model) => model.slug),
+          }));
+        return { instances };
       }),
 
     dag_delete_node: (input) =>

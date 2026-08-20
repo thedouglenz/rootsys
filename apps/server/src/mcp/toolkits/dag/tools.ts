@@ -19,7 +19,10 @@ import {
   DagQuestion,
   DagQuestionId,
   DagShell,
+  ModelSelection,
   ProjectId,
+  ProviderDriverKind,
+  ProviderInstanceId,
   ThreadId,
   TrimmedNonEmptyString,
   TrimmedString,
@@ -30,11 +33,13 @@ import { Tool, Toolkit } from "effect/unstable/ai";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { OrchestrationEngineService } from "../../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
 
 const dependencies = [
   McpInvocationContext.McpInvocationContext,
   OrchestrationEngineService,
   ProjectionSnapshotQuery,
+  ProviderRegistry,
 ];
 
 export class DagToolError extends Schema.TaggedErrorClass<DagToolError>()("DagToolError", {
@@ -154,11 +159,35 @@ export const DagUpsertNodeTool = mutatingTool(
       dependsOn: Schema.optional(Schema.Array(DagNodeId)),
       parallelSafe: Schema.optional(Schema.Boolean),
       executionMode: Schema.optional(DagNodeExecutionMode),
+      modelSelection: Schema.optional(Schema.NullOr(ModelSelection)).annotate({
+        description:
+          "Run this node on a specific provider instance/model instead of the plan default. Use dag_list_models for valid instanceId/model pairs; null clears the override.",
+      }),
     }),
     success: Schema.Struct({ node: DagNode, addedEdges: Schema.Array(DagEdge) }),
     failure: DagToolError,
     dependencies,
   }).annotate(Tool.Title, "Upsert DAG node"),
+);
+
+export const DagModelInstance = Schema.Struct({
+  instanceId: ProviderInstanceId,
+  driverKind: ProviderDriverKind,
+  displayName: Schema.NullOr(TrimmedNonEmptyString),
+  /** Model ids accepted as `modelSelection.model` for this instance. */
+  models: Schema.Array(TrimmedNonEmptyString),
+});
+export type DagModelInstance = typeof DagModelInstance.Type;
+
+export const DagListModelsTool = readonlyTool(
+  Tool.make("dag_list_models", {
+    description:
+      "List the provider instances available in this environment and the model ids each one exposes. Use these instanceId/model pairs for dag_upsert_node's modelSelection when a node needs a specific provider or model.",
+    parameters: Schema.Struct({}),
+    success: Schema.Struct({ instances: Schema.Array(DagModelInstance) }),
+    failure: DagToolError,
+    dependencies,
+  }).annotate(Tool.Title, "List provider models"),
 );
 
 export const DagDeleteNodeTool = mutatingTool(
@@ -269,6 +298,7 @@ export const DagToolkit = Toolkit.make(
   DagCreateTool,
   DagUpdateTool,
   DagUpsertNodeTool,
+  DagListModelsTool,
   DagDeleteNodeTool,
   DagAddEdgeTool,
   DagRemoveEdgeTool,

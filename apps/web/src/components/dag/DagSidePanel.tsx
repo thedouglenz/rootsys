@@ -24,6 +24,7 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { buildDagNodeViews, type DagNodeView } from "./dagModel";
+import { DagPauseBanner } from "./DagPauseBanner";
 import { DagQuestionInbox } from "./DagQuestionInbox";
 import { DagNodeStatusBadge, DagStatusBadge } from "./DagStatusBadge";
 import { DAG_NODE_STATUS_DOT_CLASS, dagProgress, topologicalDagNodes } from "./dagThreadLink";
@@ -174,6 +175,19 @@ export function DagSidePanel({
       search: dagLink.nodeId === null ? {} : { node: dagLink.nodeId },
     });
   }, [dagLink, environmentId, navigate]);
+  // Models are edited on the plan, so the banner's action hands off there
+  // with the parked node already open.
+  const openNodeModel = useCallback(
+    (nodeId: DagNodeId | null) => {
+      if (!dagLink) return;
+      void navigate({
+        to: "/plans/$environmentId/$dagId",
+        params: { environmentId, dagId: dagLink.dagId },
+        search: nodeId === null ? {} : { node: nodeId },
+      });
+    },
+    [dagLink, environmentId, navigate],
+  );
   // Canvas selection in the side panel is navigation, not editing: a node
   // with a thread opens that thread; anything else just highlights.
   const selectCanvasNode = useCallback(
@@ -247,6 +261,12 @@ export function DagSidePanel({
           </p>
         ) : null}
       </header>
+      <DagPauseBanner
+        environmentId={environmentId}
+        graph={graph}
+        onChangeModel={openNodeModel}
+        className="mx-3 mt-2"
+      />
       <DagQuestionInbox graph={graph} dispatch={dispatch} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {mode === "list" ? (

@@ -25,6 +25,8 @@ This document is the architecture reference. User-facing behavior lives in
   running; answering the last open question on a node returns it to `running`.
 - **strategy** — how a node's work is dispatched to a provider (plain turn,
   or a Claude Code Workflow when the node is fan-out shaped).
+- **pause reason** — why the _engine_ paused a plan (`Dag.pauseReason`). A
+  user-initiated pause has none.
 
 Node status is one of `pending | running | blocked | done | failed | skipped`.
 DAG status is `draft | ready | running | paused | completed | failed | archived`.
@@ -93,7 +95,16 @@ capability (browser `preview` tools stay behind the user's
 `enableAgentBrowserAccess` setting). Tools: `dag_list`, `dag_get`,
 `dag_create`, `dag_update`, `dag_upsert_node`, `dag_delete_node`,
 `dag_add_edge`, `dag_remove_edge`, `dag_validate`, `dag_set_node_status`,
-`dag_ask_user`, `dag_answer_question`.
+`dag_ask_user`, `dag_answer_question`, `dag_list_models`.
+
+`dag_list_models` is read-only and takes no arguments. It flattens
+`ProviderRegistry.getProviders` to
+`{ instances: [{ instanceId, driverKind, displayName, models: string[] }] }`,
+skipping disabled and unavailable instances since a node cannot run on one.
+Its output is exactly the `instanceId`/`model` pairs `dag_upsert_node`'s
+optional `modelSelection` accepts, so a planner can pin one node to a
+cheaper (or bigger) model than the plan default without the user editing
+anything.
 
 A thread bound to a node (`DagNode.threadId`) may omit `dagId`/`nodeId`; the
 handlers resolve them via `findDagNodeByThreadId`. Planner and companion
@@ -121,9 +132,12 @@ for all three agent roles: `packages/shared/src/dagPrompts.ts`.
   parallel execution in worktrees lands once the thread bootstrap program in
   `ws.ts` (create thread + prepare worktree + setup script) is extracted into a
   service the engine can call.
-- Model resolution: `node.modelSelection ?? dag.defaultModelSelection ??
-project.defaultModelSelection`. If none resolves (or the provider instance is
-  missing), the engine pauses the DAG and logs why.
+- Model resolution, in order: `node.modelSelection` (set by the user or by an
+  agent via `dag_upsert_node`), then `dag.defaultModelSelection`, then the
+  node's project's `defaultModelSelection`. If none resolves the engine pauses
+  with `no-model`; if the resolved provider instance is not in the registry it
+  pauses with `provider-unavailable`; if the node has neither its own
+  `projectId` nor a plan `primaryProjectId` it pauses with `no-project`.
 - Strategies shape the launch prompt only. `ClaudeWorkflowStrategy` applies
   to Claude instances when `executionMode === "workflow"` or (`auto` and the
   node reads as fan-out shaped) and tells the agent to use Workflow/ultracode
@@ -138,28 +152,60 @@ project.defaultModelSelection`. If none resolves (or the provider instance is
 - Circuit breaker: a turn that settles in under `RAPID_TURN_SETTLE_MS` never
   did node work — the provider refused it (rate limit, subscription session
   cap, auth failure). Nudging would burn more quota, so the engine pauses the
-  DAG and leaves the node `running` with its thread bound. There is no
-  retry/backoff machinery yet; classifying transient vs. persistent provider
-  failures (and auto-resuming after a limit window) is future work.
+  DAG (`provider-refused`) and leaves the node `running` with its thread
+  bound. There is no retry/backoff machinery yet; classifying transient vs.
+  persistent provider failures (and auto-resuming after a limit window) is
+  future work.
 - Resume: when a DAG is set back to `running`, before re-evaluating the
   frontier the engine sends a continuation turn (`buildDagResumeMessage`) on
-  every still-`running` node whose bound thread's session has settled. This
-  un-sticks circuit-breaker pauses and pauses that outlived a provider limit
-  window.
+  every still-`running` node whose bound thread has no live session. Resume
+  strictly precedes `schedule`, so a parked node continues on its own thread
+  instead of a fresh node launching beside it. This un-sticks circuit-breaker
+  pauses, pauses that outlived a provider limit window, and plans paused by
+  startup reconciliation.
 - Auto-settle: once a node is `done`/`skipped` and its executor thread's
   session has settled, the engine dispatches `thread.settle` so the thread
   leaves the active list (either ordering: report-then-idle, or a late mark
-  after the session already went idle). As a startup backstop, `start()`
-  queues one pass over all DAGs that settles executor threads of already
-  `done`/`skipped` nodes — covering work finished while the server was down
-  or before auto-settle existed.
+  after the session already went idle).
+- Startup reconciliation: `start()` queues one `startup-reconcile` pass over
+  every DAG (drainable, so tests can wait on it). It does two things. First,
+  the settle backstop: executor threads of already `done`/`skipped` nodes are
+  settled, covering work finished while the server was down or before
+  auto-settle existed. Second, dead-executor detection: a `running` node whose
+  bound thread has no live session (thread gone, no session, or a settled one)
+  is not executing anything, and the serial scheduler will never launch past
+  it. If that plan is `running` the engine pauses it with `unresolved` and a
+  message saying the executor session ended. The _node_ status is deliberately
+  left alone — resuming then sends that same thread a continuation turn rather
+  than restarting the work. At most one pause per plan, from the first stalled
+  node.
 - Questions: `dag_ask_user` blocks the node (decider). On
   `dag.question-answered` the decider unblocks the node when no other question
   on it is open, and the engine sends the answer as a new turn on the asking
   thread (`buildDagQuestionAnswerMessage`).
 - DAG settlement: frontier empty and every node done/skipped → `completed`;
-  any failed → `failed`; otherwise `paused` with a warning. Retrying = set the
-  node back to `pending` (clearing its thread) and the DAG to `running`.
+  any failed → `failed`; otherwise `paused` with `unresolved`. Retrying = set
+  the node back to `pending` (clearing its thread) and the DAG to `running`.
+- Pause reasons: every engine-initiated pause carries a `DagPauseReason`
+  (`kind`, `nodeId`, `threadId`, `providerMessage`, `pausedAt`) so a client can
+  say _why_ a plan stalled without anyone reading server logs. All of them go
+  through the engine's `pauseDag` helper; the kinds and where they are set:
+
+  | kind                   | set where                                                                                                                                            |
+  | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `provider-refused`     | rapid-settle circuit breaker; `providerMessage` is the executor thread's last assistant message, trimmed to `PAUSE_PROVIDER_MESSAGE_MAX_CHARS` (400) |
+  | `provider-unavailable` | `launchNode`, resolved `instanceId` not in the provider registry                                                                                     |
+  | `no-model`             | `launchNode`, nothing resolvable from node/plan/project                                                                                              |
+  | `no-project`           | `launchNode`, node has no project and the plan has no primary one                                                                                    |
+  | `unresolved`           | `schedule` (nothing ready, plan not finished) and startup reconciliation (running node, dead executor)                                               |
+
+  The reason rides `dag.status.set` → `dag.status-set` and is folded into
+  `Dag.pauseReason` by `foldDagEvent`, so the in-memory model, `projection_dags`
+  (whole-graph JSON) and client reducers all agree. The decider writes the
+  reason only on a transition to `paused` and writes `null` on every other
+  status, so a plan that runs again never shows a stale explanation. A pause
+  the _user_ asked for therefore has `pauseReason: null`.
+
 - Planner and companion threads are ordinary threads whose first user message
   is `buildDagPlannerBrief` / `buildDagCompanionBrief`, started by the client
   with the normal `thread.turn.start` + `bootstrap.createThread`; no adapter

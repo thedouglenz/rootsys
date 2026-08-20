@@ -3,9 +3,11 @@ import {
   DagId,
   EnvironmentId,
   ProjectId,
+  ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
   type DagNodeId,
+  type ServerProvider,
 } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -26,12 +28,14 @@ import { ProjectionSnapshotQuery } from "../../../orchestration/Services/Project
 import { OrchestrationEngineLive } from "../../../orchestration/Layers/OrchestrationEngine.ts";
 import { OrchestrationProjectionPipelineLive } from "../../../orchestration/Layers/ProjectionPipeline.ts";
 import { OrchestrationProjectionSnapshotQueryLive } from "../../../orchestration/Layers/ProjectionSnapshotQuery.ts";
+import { ProviderRegistry } from "../../../provider/Services/ProviderRegistry.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import { DagToolError, DagToolkit } from "./tools.ts";
 import { DagToolkitHandlersLive } from "./handlers.ts";
 
 const NOW = "2026-01-01T00:00:00.000Z";
 const projectId = ProjectId.make("project-1");
+const instanceId = ProviderInstanceId.make("codex");
 const plannerThread = ThreadId.make("thread-planner");
 const executorThread = ThreadId.make("thread-executor");
 let commandCounter = 0;
@@ -47,6 +51,31 @@ const scopeFor = (
   providerInstanceId: ProviderInstanceId.make("codex"),
   capabilities: new Set(capabilities),
   issuedAt: 0,
+});
+
+const providerSnapshot = {
+  instanceId,
+  driver: ProviderDriverKind.make("codex"),
+  displayName: "Codex",
+  enabled: true,
+  installed: true,
+  version: null,
+  status: "ready",
+  auth: { status: "authenticated" },
+  checkedAt: NOW,
+  models: [{ slug: "gpt-5", name: "GPT-5", isCustom: false, capabilities: null }],
+  slashCommands: [],
+} as unknown as ServerProvider;
+
+/** Disabled instances cannot run a node, so they must not be offered. */
+const disabledSnapshot = {
+  ...providerSnapshot,
+  instanceId: ProviderInstanceId.make("claude"),
+  enabled: false,
+} as ServerProvider;
+
+const StubProviderRegistry = Layer.mock(ProviderRegistry)({
+  getProviders: Effect.succeed([providerSnapshot, disabledSnapshot]),
 });
 
 const OrchestrationTestLayer = Layer.mergeAll(
@@ -66,7 +95,10 @@ const OrchestrationTestLayer = Layer.mergeAll(
   Layer.provideMerge(NodeServices.layer),
 );
 
-const TestLayer = DagToolkitHandlersLive.pipe(Layer.provideMerge(OrchestrationTestLayer));
+const TestLayer = DagToolkitHandlersLive.pipe(
+  Layer.provideMerge(OrchestrationTestLayer),
+  Layer.provideMerge(StubProviderRegistry),
+);
 
 /** Runs a toolkit call as if the MCP server had received it from `threadId`. */
 const call = <Name extends keyof typeof DagToolkit.tools>(
@@ -134,6 +166,27 @@ it.layer(TestLayer)("dag toolkit handlers", (it) => {
         dependsOn: [a.node.nodeId],
       })) as { node: { nodeId: DagNodeId }; addedEdges: ReadonlyArray<unknown> };
       expect(b.addedEdges).toHaveLength(1);
+
+      // Provider instances/models the planner may pin a node to.
+      const models = (yield* call(plannerThread, "dag_list_models", {})) as {
+        instances: ReadonlyArray<{
+          instanceId: string;
+          driverKind: string;
+          displayName: string | null;
+          models: ReadonlyArray<string>;
+        }>;
+      };
+      expect(models.instances).toEqual([
+        { instanceId, driverKind: "codex", displayName: "Codex", models: ["gpt-5"] },
+      ]);
+
+      // A node may pin its own provider instance/model.
+      const pinned = (yield* call(plannerThread, "dag_upsert_node", {
+        dagId,
+        nodeId: a.node.nodeId,
+        modelSelection: { instanceId, model: "gpt-5" },
+      })) as { node: { modelSelection: { instanceId: string; model: string } | null } };
+      expect(pinned.node.modelSelection).toEqual({ instanceId, model: "gpt-5" });
 
       // Missing nodeId without a title is rejected.
       const invalid = yield* Effect.flip(

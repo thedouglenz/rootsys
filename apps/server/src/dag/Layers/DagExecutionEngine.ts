@@ -3,6 +3,7 @@ import {
   type DagGraph,
   type DagId,
   type DagNode,
+  type DagPauseReason,
   DAG_NODE_SATISFIED_STATUSES,
   MessageId,
   type ModelSelection,
@@ -57,10 +58,16 @@ const SETTLED_SESSION_STATUSES: ReadonlySet<string> = new Set([
  */
 export const RAPID_TURN_SETTLE_MS = 60_000;
 
+/** Keeps a rate-limit notice readable in the UI without storing a transcript. */
+export const PAUSE_PROVIDER_MESSAGE_MAX_CHARS = 400;
+
 type EngineInput =
   | { readonly kind: "schedule"; readonly dagId: DagId }
-  | { readonly kind: "startup-settle" }
+  | { readonly kind: "startup-reconcile" }
   | { readonly kind: "event"; readonly event: OrchestrationEvent };
+
+/** Everything but `pausedAt`, which `pauseDag` stamps from the clock. */
+type PauseReasonInput = Omit<DagPauseReason, "pausedAt">;
 
 export interface DagExecutionEngineOptions {
   readonly strategies?: ReadonlyArray<DagExecutionStrategy>;
@@ -108,6 +115,44 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
           dagId,
           status,
         });
+      });
+
+    /**
+     * Pause a plan and record *why*, so the UI can explain the stall without
+     * anyone reading server logs. Every engine-initiated pause goes through
+     * here; the decider clears the reason on the next non-paused transition.
+     */
+    const pauseDag = (dagId: DagId, reason: PauseReasonInput) =>
+      Effect.gen(function* () {
+        yield* dispatch({
+          type: "dag.status.set",
+          commandId: yield* serverCommandId("status"),
+          dagId,
+          status: "paused",
+          reason: { ...reason, pausedAt: yield* nowIso },
+        });
+      });
+
+    /**
+     * The executor's last words, for a pause reason. A provider that refuses
+     * a turn usually says so in one short assistant message (rate limit,
+     * session cap, auth), which is exactly what the user needs to see.
+     */
+    const lastAssistantText = (threadId: ThreadId) =>
+      Effect.gen(function* () {
+        const detail = yield* snapshotQuery
+          .getThreadDetailById(threadId)
+          .pipe(Effect.orElseSucceed(() => Option.none()));
+        if (Option.isNone(detail)) return null;
+        const { messages } = detail.value;
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          const message = messages[index]!;
+          if (message.role !== "assistant") continue;
+          const text = message.text.trim();
+          if (text === "") continue;
+          return text.slice(0, PAUSE_PROVIDER_MESSAGE_MAX_CHARS);
+        }
+        return null;
       });
 
     const setNodeStatus = (input: {
@@ -212,7 +257,13 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
             dagId,
             nodeId: node.nodeId,
           });
-          yield* setDagStatus(dagId, "paused");
+          yield* pauseDag(dagId, {
+            kind: "no-project",
+            nodeId: node.nodeId,
+            threadId: node.threadId,
+            providerMessage:
+              "This node has no project and the plan has no primary project, so there is nowhere to run it.",
+          });
           return false;
         }
         const modelSelection = yield* resolveModelSelection(graph, node);
@@ -221,7 +272,13 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
             dagId,
             nodeId: node.nodeId,
           });
-          yield* setDagStatus(dagId, "paused");
+          yield* pauseDag(dagId, {
+            kind: "no-model",
+            nodeId: node.nodeId,
+            threadId: node.threadId,
+            providerMessage:
+              "No model resolved for this node from the node, the plan default, or the project default.",
+          });
           return false;
         }
         const instance = yield* instanceRegistry.getInstance(modelSelection.instanceId);
@@ -231,7 +288,12 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
             nodeId: node.nodeId,
             instanceId: modelSelection.instanceId,
           });
-          yield* setDagStatus(dagId, "paused");
+          yield* pauseDag(dagId, {
+            kind: "provider-unavailable",
+            nodeId: node.nodeId,
+            threadId: node.threadId,
+            providerMessage: `Provider instance ${modelSelection.instanceId} is not available in this environment.`,
+          });
           return false;
         }
         const strategy = resolveDagExecutionStrategy(strategies, {
@@ -298,7 +360,13 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
             yield* Effect.logWarning("dag engine: no ready nodes but DAG is not finished", {
               dagId,
             });
-            yield* setDagStatus(dagId, "paused");
+            yield* pauseDag(dagId, {
+              kind: "unresolved",
+              nodeId: null,
+              threadId: null,
+              providerMessage:
+                "No node can start and the plan is not finished; a dependency or node status needs attention.",
+            });
           }
           return;
         }
@@ -350,6 +418,21 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
       });
 
     /**
+     * True when the thread cannot be mid-turn: it is gone, has no session, or
+     * its session already ended. A `running` node behind such a thread is not
+     * actually executing.
+     */
+    const executorSessionEnded = (threadId: ThreadId) =>
+      Effect.gen(function* () {
+        const shell = yield* snapshotQuery
+          .getThreadShellById(threadId)
+          .pipe(Effect.orElseSucceed(() => Option.none()));
+        if (Option.isNone(shell)) return true;
+        const status = shell.value.session?.status;
+        return status === undefined || SETTLED_SESSION_STATUSES.has(status);
+      });
+
+    /**
      * A DAG just went `running` again. Any node still `running` whose bound
      * thread's session has settled is mid-flight work that stopped without a
      * report — a circuit-breaker pause, or a pause that outlived a provider
@@ -365,12 +448,7 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         for (const node of graph.nodes) {
           if (node.status !== "running" || node.threadId === null) continue;
           const threadId = node.threadId;
-          const shell = yield* snapshotQuery
-            .getThreadShellById(threadId)
-            .pipe(Effect.orElseSucceed(() => Option.none()));
-          if (Option.isNone(shell)) continue;
-          const status = shell.value.session?.status;
-          if (status === undefined || !SETTLED_SESSION_STATUSES.has(status)) continue;
+          if (!(yield* executorSessionEnded(threadId))) continue;
           const modelSelection = yield* resolveModelSelection(graph, node);
           if (modelSelection === null) continue;
           runningThreads.delete(threadId);
@@ -391,21 +469,50 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
       });
 
     /**
-     * Startup backstop: settle executor threads of nodes that finished while
-     * the server was down (or before auto-settle existed). Runs once per boot
-     * through the worker so `drain` covers it.
+     * Boot pass over every DAG. Two jobs, both about state that changed (or
+     * stopped changing) while this process was not running:
+     *
+     * - settle executor threads of nodes that finished while the server was
+     *   down, or before auto-settle existed;
+     * - pause a `running` plan whose `running` node has no live executor
+     *   session. Nothing will ever move it: the node's turn died with the old
+     *   process and the serial scheduler refuses to launch past a running
+     *   node. The node status is left alone on purpose — resuming the plan
+     *   sends that same thread a continuation turn (`resumeRunningNodes`).
+     *
+     * Runs once per boot through the worker so `drain` covers it.
      */
-    const settleFinishedExecutors = Effect.gen(function* () {
+    const reconcileOnStartup = Effect.gen(function* () {
       const shells = yield* snapshotQuery
         .listDagShells({ includeArchived: true })
         .pipe(Effect.orElseSucceed(() => []));
       for (const shell of shells) {
         const graphOption = yield* readGraph(shell.dagId);
         if (Option.isNone(graphOption)) continue;
-        for (const node of graphOption.value.nodes) {
-          const threadId = node.threadId ?? node.outcome?.threadId ?? null;
-          if (threadId === null || !DAG_NODE_SATISFIED_STATUSES.has(node.status)) continue;
-          yield* settleExecutorThread(threadId);
+        const graph = graphOption.value;
+        // One pause per DAG; the first stalled node is the one to explain.
+        let paused = false;
+        for (const node of graph.nodes) {
+          if (DAG_NODE_SATISFIED_STATUSES.has(node.status)) {
+            const threadId = node.threadId ?? node.outcome?.threadId ?? null;
+            if (threadId !== null) yield* settleExecutorThread(threadId);
+            continue;
+          }
+          if (paused || node.status !== "running" || graph.dag.status !== "running") continue;
+          if (node.threadId !== null && !(yield* executorSessionEnded(node.threadId))) continue;
+          yield* pauseDag(graph.dag.dagId, {
+            kind: "unresolved",
+            nodeId: node.nodeId,
+            threadId: node.threadId,
+            providerMessage:
+              "This node was still running when the server stopped, and its executor session ended. Resume the plan to send it a continuation turn.",
+          });
+          yield* Effect.logWarning("dag engine paused DAG: running node has no live executor", {
+            dagId: graph.dag.dagId,
+            nodeId: node.nodeId,
+            threadId: node.threadId,
+          });
+          paused = true;
         }
       }
     });
@@ -445,7 +552,12 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         const elapsedMs = startedAt === undefined ? Number.POSITIVE_INFINITY : now - startedAt;
         if (elapsedMs < RAPID_TURN_SETTLE_MS) {
           nudgedThreads.delete(threadId);
-          yield* setDagStatus(dagId, "paused");
+          yield* pauseDag(dagId, {
+            kind: "provider-refused",
+            nodeId: node.nodeId,
+            threadId,
+            providerMessage: yield* lastAssistantText(threadId),
+          });
           yield* Effect.logWarning(
             "dag engine paused DAG: executor turn ended almost immediately (provider unavailable or rate-limited?)",
             { dagId, nodeId: node.nodeId, threadId, elapsedMs },
@@ -489,8 +601,8 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
         if (input.kind === "schedule") {
           return yield* schedule(input.dagId);
         }
-        if (input.kind === "startup-settle") {
-          return yield* settleFinishedExecutors;
+        if (input.kind === "startup-reconcile") {
+          return yield* reconcileOnStartup;
         }
         const { event } = input;
         switch (event.type) {
@@ -540,7 +652,7 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
     const start: DagExecutionEngineShape["start"] = Effect.fn("DagExecutionEngine.start")(
       function* () {
         // Queued, not awaited: boot tidying must not delay start.
-        yield* worker.enqueue({ kind: "startup-settle" });
+        yield* worker.enqueue({ kind: "startup-reconcile" });
         yield* forkParked(
           Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) => {
             switch (event.type) {

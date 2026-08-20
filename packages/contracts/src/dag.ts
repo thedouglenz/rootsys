@@ -149,6 +149,26 @@ export const DagQuestion = Schema.Struct({
 });
 export type DagQuestion = typeof DagQuestion.Type;
 
+/**
+ * Why the engine paused a plan on its own. `providerMessage` carries the
+ * executor's last words (e.g. a rate-limit notice) so the UI can explain the
+ * pause without the user reading server logs.
+ */
+export const DagPauseReason = Schema.Struct({
+  kind: Schema.Literals([
+    "provider-refused",
+    "provider-unavailable",
+    "no-model",
+    "no-project",
+    "unresolved",
+  ]),
+  nodeId: Schema.NullOr(DagNodeId),
+  threadId: Schema.NullOr(ThreadId),
+  providerMessage: Schema.NullOr(TrimmedString),
+  pausedAt: IsoDateTime,
+});
+export type DagPauseReason = typeof DagPauseReason.Type;
+
 export const Dag = Schema.Struct({
   dagId: DagId,
   title: TrimmedNonEmptyString,
@@ -159,6 +179,9 @@ export const Dag = Schema.Struct({
   status: DagStatus,
   // Default model for node execution; nodes may override.
   defaultModelSelection: Schema.NullOr(ModelSelection),
+  // Set when the engine pauses itself; cleared whenever the plan runs again.
+  // Optional so pre-pause-reason payloads decode.
+  pauseReason: Schema.optional(Schema.NullOr(DagPauseReason)),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -220,6 +243,9 @@ export const DagStatusSetCommand = Schema.Struct({
   commandId: CommandId,
   dagId: DagId,
   status: DagStatus,
+  // Engine-supplied when it pauses itself. Any transition to a non-paused
+  // status clears the stored reason.
+  reason: Schema.optional(Schema.NullOr(DagPauseReason)),
 });
 export type DagStatusSetCommand = typeof DagStatusSetCommand.Type;
 
@@ -399,6 +425,7 @@ export type DagMetaUpdatedPayload = typeof DagMetaUpdatedPayload.Type;
 export const DagStatusSetPayload = Schema.Struct({
   dagId: DagId,
   status: DagStatus,
+  reason: Schema.optional(Schema.NullOr(DagPauseReason)),
   updatedAt: IsoDateTime,
 });
 export type DagStatusSetPayload = typeof DagStatusSetPayload.Type;
@@ -739,6 +766,7 @@ export function foldDagEvent(
             primaryProjectId: payload.primaryProjectId,
             status: "draft",
             defaultModelSelection: payload.defaultModelSelection,
+            pauseReason: null,
             createdAt: payload.createdAt,
             updatedAt: payload.createdAt,
           },
@@ -770,7 +798,14 @@ export function foldDagEvent(
       const { payload } = event;
       return replaceGraph(dags, payload.dagId, (graph) => ({
         ...graph,
-        dag: { ...graph.dag, status: payload.status, updatedAt: payload.updatedAt },
+        dag: {
+          ...graph.dag,
+          status: payload.status,
+          // The decider only carries a reason onto a pause; every other
+          // transition clears it, so a resumed plan never shows a stale one.
+          pauseReason: payload.status === "paused" ? (payload.reason ?? null) : null,
+          updatedAt: payload.updatedAt,
+        },
       }));
     }
     case "dag.deleted":
