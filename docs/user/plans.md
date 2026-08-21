@@ -100,6 +100,9 @@ comes from the project's settings.
 Every thread a plan starts — the planner, a companion, and each node's executor —
 knows which plan it belongs to:
 
+- Each node's thread is named after the node, and the plan's own threads are
+  named **Planning — …** and **Companion — …**. These names stay put: the app
+  never auto-renames a plan's thread, though you still can.
 - The thread header shows a **Plan ▸ …** chip naming the node (or _planner_ /
   _companion_). Click it to open the plan with that node selected. The command
   palette offers **Open this thread's plan** while such a thread is open.

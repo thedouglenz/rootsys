@@ -105,6 +105,55 @@ It is set one of two ways:
   `{ dagId, nodeId, role: "executor" }` when the thread exists. This covers a
   chat thread whose agent bound itself to a node with `dag_set_node_status`.
 
+### How DAG threads are titled
+
+`dagThreadTitle` (`packages/contracts/src/dag.ts`) is the one place the format
+lives, and everything below reads it:
+
+| role      | title                |
+| --------- | -------------------- |
+| executor  | the node's `title`   |
+| planner   | `Planning — <plan>`  |
+| companion | `Companion — <plan>` |
+
+Executors are named after their node **alone**. Prefixing the plan title was
+accurate and useless: the sidebar's plan group header and the chat header's
+`Plan ▸` chip already say which plan this is, so a shared prefix only ate the
+sidebar's width and truncated every executor row to the same string.
+
+Auto-titling is suppressed for any thread carrying a `dagLink`. Both paths in
+`orchestration/Layers/ProviderCommandReactor.ts` check it:
+
+- the first-turn path — the client used to send a `titleSeed` equal to the
+  title it had just chosen, and `canReplaceThreadTitle` reads
+  `currentTitle === titleSeed` as "nobody named this", so the generator
+  renamed planners and companions into near-duplicates of the plan
+  (`"Senior KPI MCP Coverage"`, `"Expand Senior KPI MCP Coverage"`, …);
+- `regenerateThreadTitle`, behind the sidebar's explicit **Regenerate title**.
+  It returns a completion with no title rather than returning early, so the
+  pending `titleRegeneration` state clears instead of spinning forever.
+
+The client also stopped sending `titleSeed` for these threads
+(`apps/web/src/components/dag/useDagThreadKickoff.ts`), but the server check is
+the durable one: no client can talk a DAG thread out of its name.
+
+Plans built by older builds are corrected in place. The engine's
+`startup-reconcile` pass (`dag/Layers/DagExecutionEngine.ts`) walks every DAG,
+groups the threads carrying its `dagLink` off the shell snapshot, and
+dispatches `thread.meta.update { threadId, title }` for each thread whose
+title is not the intended one — an ordinary command, no direct SQL.
+
+The exemption is **user intent**. Before renaming, the engine reads that
+thread's own stream (`OrchestrationEventStore.readByAggregate({ aggregateKind:
+"thread", aggregateId })`) and looks for a `thread.meta-updated` carrying a
+`title` whose `commandId` does not start with `server:`. Every rename the
+server issues is prefixed (`server:thread-title-rename:…`,
+`server:dag-thread-title-normalize:…`), so anything else came from a client —
+that is the user naming their own thread, and it is left alone. A stream that
+fails to read counts as renamed, so an unreadable thread never costs someone
+their title. The read is skipped entirely when the title already matches, so
+the common case is one shell snapshot and no per-thread work.
+
 ### When a companion turn replaces the provider session
 
 `ensureSessionForThread` (`orchestration/Layers/ProviderCommandReactor.ts`)
@@ -219,8 +268,9 @@ Engine: `apps/server/src/dag/Layers/DagExecutionEngine.ts` (service tag in
 for all three agent roles: `packages/shared/src/dagPrompts.ts`.
 
 - The project DAG is _not_ compiled into a single provider workflow. One node
-  ⇒ one thread (created by the engine in the node's project, title
-  `"<dag>: <node>"`, first turn = `buildDagNodeExecutionPrompt`). The engine
+  ⇒ one thread (created by the engine in the node's project, titled after the
+  node — see "How DAG threads are titled" — first turn =
+  `buildDagNodeExecutionPrompt`). The engine
   reacts to `dag.status-set`, `dag.node-status-set`, `dag.question-answered`
   and `thread.session-set` and re-evaluates the frontier of the affected DAG.
 - **v1 is strictly serial**: nothing launches while any node is `running` or

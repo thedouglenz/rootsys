@@ -1,14 +1,16 @@
 import {
   CommandId,
+  DAG_NODE_SATISFIED_STATUSES,
   type DagGraph,
   type DagId,
   type DagNode,
   type DagPauseReason,
-  DAG_NODE_SATISFIED_STATUSES,
+  dagThreadTitle,
   MessageId,
   type ModelSelection,
   type OrchestrationEvent,
   readyDagNodes,
+  type ThreadDagLink,
   ThreadId,
   topologicalDagOrder,
 } from "@t3tools/contracts";
@@ -29,6 +31,7 @@ import * as Stream from "effect/Stream";
 
 import { OrchestrationEngineService } from "../../orchestration/Services/OrchestrationEngine.ts";
 import { ProjectionSnapshotQuery } from "../../orchestration/Services/ProjectionSnapshotQuery.ts";
+import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts";
 import { ProviderInstanceRegistry } from "../../provider/Services/ProviderInstanceRegistry.ts";
 import { forkParked } from "../../serverActivation.ts";
 import {
@@ -78,6 +81,7 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
     const orchestrationEngine = yield* OrchestrationEngineService;
     const snapshotQuery = yield* ProjectionSnapshotQuery;
     const instanceRegistry = yield* ProviderInstanceRegistry;
+    const eventStore = yield* OrchestrationEventStore;
     const crypto = yield* Crypto.Crypto;
     const strategies = options?.strategies ?? DEFAULT_DAG_EXECUTION_STRATEGIES;
 
@@ -335,7 +339,10 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
           commandId: yield* serverCommandId("thread-create"),
           threadId,
           projectId,
-          title: `${graph.dag.title}: ${node.title}`,
+          // The node title alone: the sidebar's plan group header and the
+          // `Plan ▸` chip already say which plan this is, and a shared prefix
+          // truncates every executor row down to the same string.
+          title: node.title,
           modelSelection,
           runtimeMode: "full-access",
           interactionMode: launch.interactionMode,
@@ -495,9 +502,102 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
       });
 
     /**
-     * Boot pass over every DAG. Two jobs, both about state that changed (or
+     * True when a human renamed this thread. Every server-issued rename
+     * carries a `server:` command id (`server:thread-title-rename:…`,
+     * `server:dag-…`), so a `thread.meta-updated` carrying a title with any
+     * other command id is the user's own intent — which startup
+     * normalization must not overwrite. A failed read is treated as "renamed"
+     * so an unreadable stream never costs someone their title.
+     */
+    const userRenamedThread = (threadId: ThreadId) =>
+      eventStore.readByAggregate({ aggregateKind: "thread", aggregateId: threadId }).pipe(
+        Effect.map((events) =>
+          events.some(
+            (event) =>
+              event.type === "thread.meta-updated" &&
+              event.payload.title !== undefined &&
+              (event.commandId === null || !event.commandId.startsWith("server:")),
+          ),
+        ),
+        Effect.orElseSucceed(() => true),
+      );
+
+    /**
+     * Bring every thread of one DAG back to its intended title. Threads
+     * created before executors dropped the plan-title prefix, or auto-renamed
+     * by the title generator before that was suppressed, are corrected here;
+     * a thread the user renamed is left alone.
+     */
+    const normalizeDagThreadTitles = (
+      graph: DagGraph,
+      threads: ReadonlyArray<{
+        readonly threadId: ThreadId;
+        readonly title: string;
+        readonly link: ThreadDagLink;
+      }>,
+    ) =>
+      Effect.gen(function* () {
+        for (const thread of threads) {
+          const nodeTitle =
+            thread.link.nodeId === null
+              ? null
+              : (graph.nodes.find((node) => node.nodeId === thread.link.nodeId)?.title ?? null);
+          const intended = dagThreadTitle({
+            dagTitle: graph.dag.title,
+            role: thread.link.role,
+            nodeTitle,
+          });
+          if (intended === null || intended === thread.title) continue;
+          if (yield* userRenamedThread(thread.threadId)) {
+            yield* Effect.logDebug("dag engine kept a user-renamed DAG thread title", {
+              dagId: graph.dag.dagId,
+              threadId: thread.threadId,
+              title: thread.title,
+            });
+            continue;
+          }
+          yield* dispatch({
+            type: "thread.meta.update",
+            commandId: yield* serverCommandId("thread-title-normalize"),
+            threadId: thread.threadId,
+            title: intended,
+          });
+          yield* Effect.logInfo("dag engine normalized a DAG thread title", {
+            dagId: graph.dag.dagId,
+            threadId: thread.threadId,
+            from: thread.title,
+            to: intended,
+          });
+        }
+      });
+
+    /** Threads carrying a `dagLink`, grouped by the DAG they belong to. */
+    const linkedThreadsByDag = Effect.gen(function* () {
+      const snapshot = yield* snapshotQuery
+        .getShellSnapshot()
+        .pipe(Effect.orElseSucceed(() => null));
+      const byDag = new Map<
+        DagId,
+        Array<{ threadId: ThreadId; title: string; link: ThreadDagLink }>
+      >();
+      for (const thread of snapshot?.threads ?? []) {
+        const link = thread.dagLink;
+        if (!link) continue;
+        const entry = { threadId: thread.id, title: thread.title, link };
+        const existing = byDag.get(link.dagId);
+        if (existing) existing.push(entry);
+        else byDag.set(link.dagId, [entry]);
+      }
+      return byDag;
+    });
+
+    /**
+     * Boot pass over every DAG. Three jobs, all about state that changed (or
      * stopped changing) while this process was not running:
      *
+     * - normalize the titles of the DAG's threads, so plans built by older
+     *   builds (or auto-renamed before that was suppressed) read the same as
+     *   plans built today, without touching a title the user chose;
      * - settle executor threads of nodes that finished while the server was
      *   down, or before auto-settle existed;
      * - pause a `running` plan whose `running` node has no live executor
@@ -512,10 +612,12 @@ export const makeDagExecutionEngine = (options?: DagExecutionEngineOptions) =>
       const shells = yield* snapshotQuery
         .listDagShells({ includeArchived: true })
         .pipe(Effect.orElseSucceed(() => []));
+      const linkedThreads = yield* linkedThreadsByDag;
       for (const shell of shells) {
         const graphOption = yield* readGraph(shell.dagId);
         if (Option.isNone(graphOption)) continue;
         const graph = graphOption.value;
+        yield* normalizeDagThreadTitles(graph, linkedThreads.get(shell.dagId) ?? []);
         // One pause per DAG; the first stalled node is the one to explain.
         let paused = false;
         for (const node of graph.nodes) {

@@ -14,6 +14,8 @@ import { createModelSelection } from "@t3tools/shared/model";
 import {
   ApprovalRequestId,
   CommandId,
+  DagId,
+  DagNodeId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   EventId,
   MessageId,
@@ -710,6 +712,121 @@ describe("ProviderCommandReactor", () => {
     const readModel = await harness.readModel();
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.title).toBe("Generated title");
+  });
+
+  it("never titles a plan thread, on its first turn or on demand", async () => {
+    const harness = await createHarness();
+    const now = "2026-01-01T00:00:00.000Z";
+    const threadId = ThreadId.make("thread-plan");
+    const plannerTitle = "Planning — Ship it";
+    harness.generateThreadTitle.mockReturnValue(Effect.succeed({ title: "Generated title" }));
+
+    // A planner thread names itself; the plan surfaces read that name back.
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("cmd-thread-create-plan"),
+        threadId,
+        projectId: asProjectId("project-1"),
+        title: plannerTitle,
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5-codex" },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        branch: null,
+        worktreePath: null,
+        dagLink: { dagId: DagId.make("dag-1"), nodeId: null, role: "planner" },
+        createdAt: now,
+      }),
+    );
+    // A seed equal to the current title is what `canReplaceThreadTitle` reads
+    // as "not user-chosen" — the exact path that renamed planners before.
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("cmd-turn-start-plan"),
+        threadId,
+        message: {
+          messageId: asMessageId("user-message-plan"),
+          role: "user",
+          text: "You are the planner for this plan. Draft the nodes.",
+          attachments: [],
+        },
+        titleSeed: plannerTitle,
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: now,
+      }),
+    );
+    await harness.drain();
+
+    expect(harness.generateThreadTitle).not.toHaveBeenCalled();
+
+    // The sidebar's explicit "Regenerate title" is refused too, and clears
+    // its own pending state rather than spinning forever.
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.meta.update",
+        commandId: CommandId.make("cmd-thread-title-regenerate-plan"),
+        threadId,
+        regenerateTitle: true,
+      }),
+    );
+    await harness.drain();
+
+    expect(harness.generateThreadTitle).not.toHaveBeenCalled();
+    const readModel = await harness.readModel();
+    const thread = readModel.threads.find((entry) => entry.id === threadId);
+    expect(thread?.title).toBe(plannerTitle);
+    expect(thread?.titleRegeneration).toBeNull();
+  });
+
+  it("never titles an executor thread bound to a plan node", async () => {
+    const harness = await createHarness();
+    const now = "2026-01-01T00:00:00.000Z";
+    const threadId = ThreadId.make("thread-executor");
+    harness.generateThreadTitle.mockReturnValue(Effect.succeed({ title: "Generated title" }));
+
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make("cmd-thread-create-executor"),
+        threadId,
+        projectId: asProjectId("project-1"),
+        title: "Build",
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5-codex" },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        branch: null,
+        worktreePath: null,
+        dagLink: {
+          dagId: DagId.make("dag-1"),
+          nodeId: DagNodeId.make("node-build"),
+          role: "executor",
+        },
+        createdAt: now,
+      }),
+    );
+    await harness.runEffect(
+      harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("cmd-turn-start-executor"),
+        threadId,
+        message: {
+          messageId: asMessageId("user-message-executor"),
+          role: "user",
+          text: "Work node 'Build' of this plan and report when it is done.",
+          attachments: [],
+        },
+        interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+        runtimeMode: "approval-required",
+        createdAt: now,
+      }),
+    );
+    await harness.drain();
+
+    expect(harness.generateThreadTitle).not.toHaveBeenCalled();
+    const readModel = await harness.readModel();
+    expect(readModel.threads.find((entry) => entry.id === threadId)?.title).toBe("Build");
   });
 
   it("regenerates a thread title from the current conversation", async () => {

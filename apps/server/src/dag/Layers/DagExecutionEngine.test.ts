@@ -78,7 +78,7 @@ const OrchestrationTestLayer = Layer.mergeAll(
 ).pipe(
   Layer.provide(ThreadBackgroundLiveness.layer),
   Layer.provide(ThreadPlanProgress.layer),
-  Layer.provide(OrchestrationEventStoreLive),
+  Layer.provideMerge(OrchestrationEventStoreLive),
   Layer.provide(OrchestrationCommandReceiptRepositoryLive),
   Layer.provide(RepositoryIdentityResolver.layer),
   Layer.provide(SqlitePersistenceMemory),
@@ -231,6 +231,9 @@ it.layer(TestLayer)("DagExecutionEngine", (it) => {
       // The engine-created executor thread is linked to its node.
       const shellA = yield* threadShellOf(threadA);
       expect(shellA.dagLink).toEqual({ dagId, nodeId: nodeA, role: "executor" });
+      // Titled after the node alone: the sidebar's plan group already names
+      // the plan, and a shared prefix truncates every executor row alike.
+      expect(shellA.title).toBe("A");
       expect(shellA.settledAt).toBeNull();
 
       // Executor asks a question → node blocked; engine must not launch B.
@@ -703,6 +706,112 @@ it.layer(TestLayer)("DagExecutionEngine node model override", (it) => {
       // The nudge turn goes out on the override, and the thread record follows
       // so the composer cannot claim the old model.
       expect((yield* threadShellOf(threadId)).modelSelection.model).toBe(override.model);
+    }),
+  );
+});
+
+it.layer(TestLayer)("DagExecutionEngine startup title normalization", (it) => {
+  it.effect("renames stale DAG thread titles but keeps the ones a user chose", () =>
+    Effect.gen(function* () {
+      const engine = yield* DagExecutionEngine;
+      const staleExecutor = ThreadId.make("thread-stale-executor");
+      const autoRenamedPlanner = ThreadId.make("thread-auto-planner");
+      const userNamed = ThreadId.make("thread-user-named");
+      const alreadyCorrect = ThreadId.make("thread-already-correct");
+
+      const linkedThread = (
+        threadId: ThreadId,
+        title: string,
+        dagLink: {
+          dagId: DagId;
+          nodeId: DagNodeId | null;
+          role: "executor" | "planner" | "companion";
+        },
+      ) =>
+        ({
+          type: "thread.create",
+          commandId: cmd(),
+          threadId,
+          projectId,
+          title,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          dagLink,
+          createdAt: NOW,
+        }) satisfies OrchestrationCommand;
+
+      yield* dispatchAll([
+        {
+          type: "project.create",
+          commandId: cmd(),
+          projectId,
+          title: "Project",
+          workspaceRoot: "/tmp/rootsys-dag-title-test",
+          defaultModelSelection: modelSelection,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.create",
+          commandId: cmd(),
+          dagId,
+          title: "Ship it",
+          primaryProjectId: projectId,
+          createdAt: NOW,
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeA,
+          title: "Build",
+          description: "do a",
+        },
+        {
+          type: "dag.node.upsert",
+          commandId: cmd(),
+          dagId,
+          nodeId: nodeB,
+          title: "Test",
+          description: "do b",
+          dependsOn: [nodeA],
+        },
+        // The old `"<plan>: <node>"` form every executor row truncated to.
+        linkedThread(staleExecutor, "Ship it: Build", { dagId, nodeId: nodeA, role: "executor" }),
+        // What the title generator turned a planner into before suppression.
+        linkedThread(autoRenamedPlanner, "Expand Ship It Coverage", {
+          dagId,
+          nodeId: null,
+          role: "planner",
+        }),
+        linkedThread(userNamed, "Companion: Ship it", { dagId, nodeId: null, role: "companion" }),
+        linkedThread(alreadyCorrect, "Test", { dagId, nodeId: nodeB, role: "executor" }),
+        // A client-issued rename (no `server:` command id) is user intent.
+        {
+          type: "thread.meta.update",
+          commandId: cmd(),
+          threadId: userNamed,
+          title: "Scratchpad",
+        },
+      ]);
+
+      const events = yield* recordEvents;
+      yield* engine.start();
+      yield* engine.drain;
+
+      expect((yield* threadShellOf(staleExecutor)).title).toBe("Build");
+      expect((yield* threadShellOf(autoRenamedPlanner)).title).toBe("Planning — Ship it");
+      expect((yield* threadShellOf(userNamed)).title).toBe("Scratchpad");
+      expect((yield* threadShellOf(alreadyCorrect)).title).toBe("Test");
+
+      // Only the two stale threads were touched: a correct title and a
+      // user-chosen one cost no command at all.
+      const renamed = (yield* Queue.takeAll(events))
+        .filter((event) => event.type === "thread.meta-updated")
+        .map((event) => event.aggregateId);
+      expect(new Set(renamed)).toEqual(new Set([staleExecutor, autoRenamedPlanner]));
     }),
   );
 });

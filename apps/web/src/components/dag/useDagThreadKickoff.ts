@@ -1,5 +1,7 @@
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
+  DAG_COMPANION_TITLE_PREFIX,
+  DAG_PLANNER_TITLE_PREFIX,
   type DagId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
@@ -36,6 +38,12 @@ interface KickoffInput {
  * is the role brief. This hook creates the thread and its first turn in one
  * `thread.turn.start`, then navigates to it unless the caller opted out.
  * Returns the new thread's id, or null when the server refused.
+ *
+ * No `titleSeed` goes with the turn: these titles are deliberate, and a seed
+ * equal to the title is exactly what `canReplaceThreadTitle` reads as "the
+ * user did not name this", which auto-renamed planners and companions into
+ * near-duplicates of each other. The server refuses to retitle a DAG thread
+ * either way; leaving the seed off keeps the client honest on its own.
  */
 export function useDagThreadKickoff() {
   const navigate = useNavigate();
@@ -56,7 +64,6 @@ export function useDagThreadKickoff() {
             attachments: [],
           },
           modelSelection: input.modelSelection,
-          titleSeed: input.title,
           runtimeMode: DEFAULT_RUNTIME_MODE,
           interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
           bootstrap: {
@@ -105,7 +112,7 @@ export function useDagThreadKickoff() {
         environmentId: input.environmentId,
         projectId: input.projectId,
         modelSelection: input.modelSelection,
-        title: `Plan: ${input.dagTitle}`,
+        title: `${DAG_PLANNER_TITLE_PREFIX}${input.dagTitle}`,
         dagId: input.dagId,
         role: "planner",
         text: buildDagPlannerBrief({
@@ -132,7 +139,7 @@ export function useDagThreadKickoff() {
         environmentId: input.environmentId,
         projectId: input.projectId,
         modelSelection: input.modelSelection,
-        title: `Companion: ${input.dagTitle}`,
+        title: `${DAG_COMPANION_TITLE_PREFIX}${input.dagTitle}`,
         dagId: input.dagId,
         role: "companion",
         text: buildDagCompanionBrief({ dagId: input.dagId, dagTitle: input.dagTitle }),

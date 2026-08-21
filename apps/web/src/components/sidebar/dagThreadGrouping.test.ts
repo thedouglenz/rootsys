@@ -55,20 +55,31 @@ describe("groupSidebarThreadsByDag", () => {
 });
 
 describe("fallbackDagTitle", () => {
-  it("prefers the executor title prefix", () => {
+  it("strips the planner/companion prefix", () => {
     expect(
       fallbackDagTitle([
-        thread("Plan: Ship it", { dagId: dagA, nodeId: null, role: "planner" }),
-        thread("Ship it: build", executor(dagA, "build")),
+        thread("Planning — Ship it", { dagId: dagA, nodeId: null, role: "planner" }),
+        thread("build", executor(dagA, "build")),
+      ]),
+    ).toBe("Ship it");
+    expect(
+      fallbackDagTitle([
+        thread("Companion — Ship it", { dagId: dagA, nodeId: null, role: "companion" }),
       ]),
     ).toBe("Ship it");
   });
-  it("strips the planner/companion prefix otherwise", () => {
+  it("still reads the titles older servers produced", () => {
+    expect(
+      fallbackDagTitle([thread("Plan: Ship it", { dagId: dagA, nodeId: null, role: "planner" })]),
+    ).toBe("Ship it");
+  });
+  it("returns null when only executors are present, since they no longer name the plan", () => {
     expect(
       fallbackDagTitle([
-        thread("Companion: Ship it", { dagId: dagA, nodeId: null, role: "companion" }),
+        thread("build", executor(dagA, "build")),
+        thread("run: the tests", executor(dagA, "test")),
       ]),
-    ).toBe("Ship it");
+    ).toBeNull();
     expect(fallbackDagTitle([thread("untitled")])).toBeNull();
   });
 });

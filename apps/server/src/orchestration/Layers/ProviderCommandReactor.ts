@@ -900,6 +900,17 @@ const make = Effect.gen(function* () {
       return { _tag: "Superseded" } as const;
     }
 
+    // Same rule as the first turn: a DAG thread's name belongs to its plan.
+    // Completing without a title clears the pending request so the sidebar
+    // never spins on a rename that will not happen.
+    if (thread.dagLink) {
+      yield* Effect.logDebug(
+        "provider command reactor skipped title regeneration for a DAG thread",
+        { threadId: event.payload.threadId, role: thread.dagLink.role },
+      );
+      return { _tag: "Completed", title: undefined } as const;
+    }
+
     const { message, attachments } = formatThreadTitleContext(thread.messages);
     if (message.length === 0) {
       return { _tag: "Completed", title: undefined } as const;
@@ -1105,7 +1116,15 @@ const make = Effect.gen(function* () {
         ...generationInput,
       }).pipe(Effect.forkScoped);
 
-      if (canReplaceThreadTitle(thread.title, event.payload.titleSeed)) {
+      // A DAG thread is deliberately named (the node's title, or
+      // `Planning — <plan>` / `Companion — <plan>`) and the plan surfaces
+      // read those names back, so no first-turn seed may retitle it.
+      if (thread.dagLink) {
+        yield* Effect.logDebug(
+          "provider command reactor skipped first-turn title generation for a DAG thread",
+          { threadId: event.payload.threadId, role: thread.dagLink.role },
+        );
+      } else if (canReplaceThreadTitle(thread.title, event.payload.titleSeed)) {
         yield* maybeGenerateThreadTitleForFirstTurn({
           threadId: event.payload.threadId,
           cwd: generationCwd,

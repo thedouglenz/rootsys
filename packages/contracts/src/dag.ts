@@ -618,6 +618,36 @@ export const ThreadDagLink = Schema.Struct({
 });
 export type ThreadDagLink = typeof ThreadDagLink.Type;
 
+/** Prefix of a planner thread's title. Exported so clients can parse it back. */
+export const DAG_PLANNER_TITLE_PREFIX = "Planning — ";
+/** Prefix of a companion thread's title. */
+export const DAG_COMPANION_TITLE_PREFIX = "Companion — ";
+
+/**
+ * The title a plan gives one of its threads, and the single source of truth
+ * for it: the engine names the executor threads it launches, the client names
+ * the planner and companion threads it starts, and the engine re-normalizes
+ * both at startup. Executors are named after their node alone — the sidebar's
+ * plan group header and the `Plan ▸` chip already say which plan this is, and
+ * repeating the plan title truncates every executor row to the same string.
+ * Returns null when the intended title is unknowable (an executor whose node
+ * is gone), which callers read as "leave this title alone".
+ */
+export function dagThreadTitle(input: {
+  readonly dagTitle: string;
+  readonly role: ThreadDagRole;
+  readonly nodeTitle?: string | null | undefined;
+}): string | null {
+  switch (input.role) {
+    case "planner":
+      return `${DAG_PLANNER_TITLE_PREFIX}${input.dagTitle}`;
+    case "companion":
+      return `${DAG_COMPANION_TITLE_PREFIX}${input.dagTitle}`;
+    case "executor":
+      return input.nodeTitle ?? null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // RPC input/output
 // ---------------------------------------------------------------------------

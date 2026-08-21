@@ -5,7 +5,13 @@
  * (most recent) member sat. Single linked threads stay plain rows: a header
  * for one row is noise.
  */
-import type { DagId, EnvironmentId, ThreadDagLink } from "@t3tools/contracts";
+import {
+  DAG_COMPANION_TITLE_PREFIX,
+  DAG_PLANNER_TITLE_PREFIX,
+  type DagId,
+  type EnvironmentId,
+  type ThreadDagLink,
+} from "@t3tools/contracts";
 
 export interface DagGroupableThread {
   readonly environmentId: EnvironmentId;
@@ -66,20 +72,25 @@ export function groupSidebarThreadsByDag<T extends DagGroupableThread>(
   return items;
 }
 
-const ROLE_TITLE_PREFIXES = ["Plan: ", "Companion: "] as const;
+// Newest first; the `"Plan: "` / `"Companion: "` pair is what servers before
+// the rename produced, and remote environments can still be on those.
+const ROLE_TITLE_PREFIXES = [
+  DAG_PLANNER_TITLE_PREFIX,
+  DAG_COMPANION_TITLE_PREFIX,
+  "Plan: ",
+  "Companion: ",
+] as const;
 
 /**
  * Best-effort plan title from member thread titles while the DAG graph is
- * still loading: executors are titled `"<plan>: <node>"`, planner and
- * companion threads `"Plan: <plan>"` / `"Companion: <plan>"`.
+ * still loading. Only planner and companion threads carry it — executors are
+ * titled after their node alone — so a group of executors falls back to null
+ * and the header waits for the graph.
  */
 export function fallbackDagTitle(threads: ReadonlyArray<DagGroupableThread>): string | null {
   for (const thread of threads) {
-    if (thread.dagLink?.role !== "executor") continue;
-    const index = thread.title.indexOf(": ");
-    if (index > 0) return thread.title.slice(0, index);
-  }
-  for (const thread of threads) {
+    const role = thread.dagLink?.role;
+    if (role !== "planner" && role !== "companion") continue;
     for (const prefix of ROLE_TITLE_PREFIXES) {
       if (thread.title.startsWith(prefix) && thread.title.length > prefix.length) {
         return thread.title.slice(prefix.length);
