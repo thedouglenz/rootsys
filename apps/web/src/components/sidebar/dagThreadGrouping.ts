@@ -72,14 +72,35 @@ export function groupSidebarThreadsByDag<T extends DagGroupableThread>(
   return items;
 }
 
-// Newest first; the `"Plan: "` / `"Companion: "` pair is what servers before
-// the rename produced, and remote environments can still be on those.
-const ROLE_TITLE_PREFIXES = [
-  DAG_PLANNER_TITLE_PREFIX,
-  DAG_COMPANION_TITLE_PREFIX,
-  "Plan: ",
-  "Companion: ",
-] as const;
+/** `"Planning — "` → `"Planning"`: the role word its prefix is built from. */
+const roleWord = (prefix: string) => prefix.replace(/[\s—:]+$/u, "");
+
+// Newest first; the `"Plan: "` / `"Companion: "` forms are what servers before
+// the rename produced, and remote environments can still be on those. Both
+// forms resolve to the current role word, so a legacy title reads the same as
+// a fresh one.
+const ROLE_TITLES = {
+  planner: {
+    word: roleWord(DAG_PLANNER_TITLE_PREFIX),
+    prefixes: [DAG_PLANNER_TITLE_PREFIX, "Plan: "],
+  },
+  companion: {
+    word: roleWord(DAG_COMPANION_TITLE_PREFIX),
+    prefixes: [DAG_COMPANION_TITLE_PREFIX, "Companion: "],
+  },
+} as const;
+
+/** The plan title carried by a planner/companion title, or null. */
+function planTitleFrom(thread: DagGroupableThread): string | null {
+  const role = thread.dagLink?.role;
+  if (role !== "planner" && role !== "companion") return null;
+  for (const prefix of ROLE_TITLES[role].prefixes) {
+    if (thread.title.startsWith(prefix) && thread.title.length > prefix.length) {
+      return thread.title.slice(prefix.length);
+    }
+  }
+  return null;
+}
 
 /**
  * Best-effort plan title from member thread titles while the DAG graph is
@@ -89,13 +110,22 @@ const ROLE_TITLE_PREFIXES = [
  */
 export function fallbackDagTitle(threads: ReadonlyArray<DagGroupableThread>): string | null {
   for (const thread of threads) {
-    const role = thread.dagLink?.role;
-    if (role !== "planner" && role !== "companion") continue;
-    for (const prefix of ROLE_TITLE_PREFIXES) {
-      if (thread.title.startsWith(prefix) && thread.title.length > prefix.length) {
-        return thread.title.slice(prefix.length);
-      }
-    }
+    const planTitle = planTitleFrom(thread);
+    if (planTitle !== null) return planTitle;
   }
   return null;
+}
+
+/**
+ * What a member row shows *inside its plan group*, where the header already
+ * says which plan this is: a planner or companion thread drops the plan title
+ * its stored name repeats and reads as just `Planning` / `Companion`.
+ * Executors are node-titled already, and a renamed thread keeps its name.
+ * Render-time only — the stored title stays meaningful in search, on mobile,
+ * and anywhere the row appears outside the group.
+ */
+export function dagMemberDisplayTitle(thread: DagGroupableThread): string {
+  const role = thread.dagLink?.role;
+  if (role !== "planner" && role !== "companion") return thread.title;
+  return planTitleFrom(thread) === null ? thread.title : ROLE_TITLES[role].word;
 }

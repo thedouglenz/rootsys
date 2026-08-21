@@ -1,7 +1,11 @@
 import { DagId, DagNodeId, EnvironmentId, type ThreadDagLink } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { fallbackDagTitle, groupSidebarThreadsByDag } from "./dagThreadGrouping";
+import {
+  dagMemberDisplayTitle,
+  fallbackDagTitle,
+  groupSidebarThreadsByDag,
+} from "./dagThreadGrouping";
 
 const env = EnvironmentId.make("env-1");
 const dagA = DagId.make("dag-a");
@@ -81,5 +85,50 @@ describe("fallbackDagTitle", () => {
       ]),
     ).toBeNull();
     expect(fallbackDagTitle([thread("untitled")])).toBeNull();
+  });
+});
+
+describe("dagMemberDisplayTitle", () => {
+  const planner = { dagId: dagA, nodeId: null, role: "planner" } as const;
+  const companion = { dagId: dagA, nodeId: null, role: "companion" } as const;
+
+  it("drops the plan title the group header already shows", () => {
+    expect(dagMemberDisplayTitle(thread("Companion — Ship it", companion))).toBe("Companion");
+    expect(dagMemberDisplayTitle(thread("Planning — Ship it", planner))).toBe("Planning");
+  });
+
+  it("reads the legacy titles older servers produced", () => {
+    expect(dagMemberDisplayTitle(thread("Companion: Ship it", companion))).toBe("Companion");
+    expect(dagMemberDisplayTitle(thread("Plan: Ship it", planner))).toBe("Planning");
+  });
+
+  it("leaves executors alone, since they are already node-titled", () => {
+    expect(dagMemberDisplayTitle(thread("Run the tests", executor(dagA, "test")))).toBe(
+      "Run the tests",
+    );
+    expect(dagMemberDisplayTitle(thread("Companion — Ship it", executor(dagA, "x")))).toBe(
+      "Companion — Ship it",
+    );
+  });
+
+  it("keeps a title that merely starts like the prefix", () => {
+    expect(dagMemberDisplayTitle(thread("Companionship audit", companion))).toBe(
+      "Companionship audit",
+    );
+    expect(dagMemberDisplayTitle(thread("Planning the rollout", planner))).toBe(
+      "Planning the rollout",
+    );
+    // Prefix with nothing after it is not a plan-scoped title either.
+    expect(dagMemberDisplayTitle(thread("Companion — ", companion))).toBe("Companion — ");
+  });
+
+  it("keeps a renamed thread's own name", () => {
+    expect(dagMemberDisplayTitle(thread("Why does auth 500?", companion))).toBe(
+      "Why does auth 500?",
+    );
+  });
+
+  it("leaves unlinked threads alone", () => {
+    expect(dagMemberDisplayTitle(thread("Companion — Ship it"))).toBe("Companion — Ship it");
   });
 });

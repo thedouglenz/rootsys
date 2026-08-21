@@ -179,7 +179,11 @@ import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrom
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { SidebarDagLinkGlyph, SidebarPlanGroupHeader } from "./sidebar/SidebarPlanGroup";
-import { fallbackDagTitle, groupSidebarThreadsByDag } from "./sidebar/dagThreadGrouping";
+import {
+  dagMemberDisplayTitle,
+  fallbackDagTitle,
+  groupSidebarThreadsByDag,
+} from "./sidebar/dagThreadGrouping";
 import {
   composerDraftHasUserContent,
   DraftId,
@@ -727,6 +731,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
   projectCwd: string | null;
   projectFaviconPath: string | null;
   projectTitle: string | null;
+  // Set only for rows inside a plan group, where the group header already
+  // carries the plan and (usually) the project. Both are render-time only:
+  // the stored title still drives renaming, search, the tooltip, and every
+  // other surface this thread appears on.
+  displayTitle?: string | undefined;
+  hideProjectLabel?: boolean | undefined;
   providerEntryByInstanceId: ReadonlyMap<string, ProviderInstanceEntry>;
   timestampFormat: TimestampFormat;
   onThreadClick: (event: ReactMouseEvent, threadRef: ScopedThreadRef) => void;
@@ -1153,7 +1163,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
         isRegeneratingTitle && "opacity-[0.55]",
       )}
     >
-      {thread.title}
+      {props.displayTitle ?? thread.title}
     </span>
   );
 
@@ -1381,7 +1391,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                 faviconPath={props.projectFaviconPath}
                 className="size-4 shrink-0"
               />
-              {props.projectTitle ? (
+              {props.projectTitle && props.hideProjectLabel !== true ? (
                 <span
                   className={cn(
                     "min-w-0 flex-1 truncate text-secondary-label text-xs",
@@ -3654,6 +3664,10 @@ export default function Sidebar() {
                     thread: EnvironmentThreadShell,
                     section: "pinned" | "active" | "snoozed" | "settled",
                     sortable?: SortablePinnedRowBag,
+                    // Only plan-group members pass this. Every field is a
+                    // primitive that stays referentially stable across
+                    // renders, so the memoized row still bails out.
+                    grouped?: { displayTitle: string; hideProjectLabel: boolean },
                   ) => {
                     const threadKey = scopedThreadKey(
                       scopeThreadRef(thread.environmentId, thread.id),
@@ -3730,6 +3744,8 @@ export default function Sidebar() {
                             `${thread.environmentId}:${thread.projectId}`,
                           ) ?? null
                         }
+                        displayTitle={grouped?.displayTitle}
+                        hideProjectLabel={grouped?.hideProjectLabel}
                         providerEntryByInstanceId={providerEntryByInstanceId}
                         timestampFormat={timestampFormat}
                         onThreadClick={handleThreadClick}
@@ -3816,17 +3832,15 @@ export default function Sidebar() {
                       continue;
                     }
                     const expanded = !collapsedPlanGroups.includes(item.key);
-                    items.push(
-                      <SidebarPlanGroupHeader
-                        key={`plan-group:${item.key}`}
-                        environmentId={item.environmentId}
-                        dagId={item.dagId}
-                        fallbackTitle={fallbackDagTitle(item.threads)}
-                        memberCount={item.threads.length}
-                        expanded={expanded}
-                        onToggle={() => togglePlanGroup(item.key)}
-                      />,
+                    // The header names the project only when every member
+                    // shares one, so a single-repo plan stops repeating it on
+                    // every card. A multi-repo plan keeps the labels: there
+                    // the project is the thing that tells the rows apart.
+                    const groupProjectId = item.threads[0]?.projectId;
+                    const oneProject = item.threads.every(
+                      (thread) => thread.projectId === groupProjectId,
                     );
+                    const memberRows: ReactNode[] = [];
                     for (const thread of item.threads) {
                       // A collapsed group still shows the open thread, like
                       // the settled shelf does, so the active row never hides.
@@ -3837,8 +3851,42 @@ export default function Sidebar() {
                       ) {
                         continue;
                       }
-                      items.push(renderThreadRow(thread, "active"));
+                      memberRows.push(
+                        renderThreadRow(thread, "active", undefined, {
+                          displayTitle: dagMemberDisplayTitle(thread),
+                          hideProjectLabel: oneProject,
+                        }),
+                      );
                     }
+                    // One list item for the whole group: the top rule opens
+                    // it, and the members hang off a single bordered list so
+                    // the rail is continuous by construction rather than
+                    // stitched together from per-row borders.
+                    items.push(
+                      <li
+                        key={`plan-group:${item.key}`}
+                        data-thread-selection-safe
+                        className="mt-2 list-none border-t border-sidebar-border/50 pt-1"
+                      >
+                        <SidebarPlanGroupHeader
+                          environmentId={item.environmentId}
+                          dagId={item.dagId}
+                          groupKey={item.key}
+                          fallbackTitle={fallbackDagTitle(item.threads)}
+                          memberCount={item.threads.length}
+                          expanded={expanded}
+                          onToggle={togglePlanGroup}
+                        />
+                        {memberRows.length > 0 ? (
+                          <ul
+                            role="list"
+                            className="ml-3.5 flex flex-col gap-px border-l border-sidebar-border/70 pl-1.5"
+                          >
+                            {memberRows}
+                          </ul>
+                        ) : null}
+                      </li>,
+                    );
                   }
                   // Snoozed shelf: between the inbox and Settled — out of the
                   // way, never gone. The header always renders while anything
