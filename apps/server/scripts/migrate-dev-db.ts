@@ -38,7 +38,7 @@ import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import { Command, Flag } from "effect/unstable/cli";
 
-import { migrationManifest, runMigrations } from "../src/persistence/Migrations.ts";
+import { findMigrationLineageMismatch, runMigrations } from "../src/persistence/Migrations.ts";
 import * as NodeSqliteClient from "../src/persistence/NodeSqliteClient.ts";
 
 export class MigrateDevDbNotInWorktreeError extends Schema.TaggedErrorClass<MigrateDevDbNotInWorktreeError>()(
@@ -335,17 +335,16 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
 
 /** Compare this checkout's migration registry against what the cloned
  * database recorded: same slot under a different name means the migration
- * was skipped, not applied. */
+ * was skipped, not applied. Shares the comparison with the server's boot-time
+ * lineage guard, and reports it in the terms this script can act on. */
 const verifyMigrationSlots = Effect.fn("verifyMigrationSlots")(function* () {
-  const sql = yield* SqlClient.SqlClient;
-  const applied = yield* sql<{ migration_id: number; name: string }>`
-    SELECT migration_id, name FROM effect_sql_migrations`;
-  const appliedById = new Map(applied.map((row) => [Number(row.migration_id), row.name]));
-  for (const [slot, codeName] of migrationManifest) {
-    const appliedName = appliedById.get(slot);
-    if (appliedName !== undefined && appliedName !== codeName) {
-      return yield* new MigrateDevDbSlotCollisionError({ slot, codeName, appliedName });
-    }
+  const mismatch = yield* findMigrationLineageMismatch();
+  if (mismatch !== undefined) {
+    return yield* new MigrateDevDbSlotCollisionError({
+      slot: mismatch.migrationId,
+      codeName: mismatch.expectedName,
+      appliedName: mismatch.recordedName,
+    });
   }
 });
 
@@ -431,6 +430,19 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
     // otherwise crash the prune queries on columns that don't exist yet.
     // Running against the full snapshot also exercises new migrations on the
     // same data volume the real database would face.
+    // Verify before migrating: runMigrations rejects a foreign lineage itself, but
+    // only with the generic boot error. Checking first keeps the message that names
+    // the colliding slot, and aborts before the snapshot is touched at all.
+    yield* verifyMigrationSlots().pipe(
+      Effect.provide(NodeSqliteClient.layer({ filename: snapshotPath })),
+      Effect.catchTags({
+        SqlError: (cause) =>
+          Effect.fail(
+            new MigrateDevDbPhaseError({ phase: "verify", databasePath: snapshotPath, cause }),
+          ),
+      }),
+    );
+
     yield* Console.log("Running migrations on the snapshot...");
     const executed = yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
@@ -440,19 +452,6 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
     }).pipe(
       Effect.provide(NodeSqliteClient.layer({ filename: snapshotPath })),
       wrapPhase("migrate", snapshotPath),
-    );
-
-    // Verify while the snapshot is still the only thing touched: a slot
-    // collision must abort before the old worktree db gets replaced with a
-    // schema whose colliding migration was silently skipped.
-    yield* verifyMigrationSlots().pipe(
-      Effect.provide(NodeSqliteClient.layer({ filename: snapshotPath })),
-      Effect.catchTags({
-        SqlError: (cause) =>
-          Effect.fail(
-            new MigrateDevDbPhaseError({ phase: "verify", databasePath: snapshotPath, cause }),
-          ),
-      }),
     );
 
     yield* Console.log(

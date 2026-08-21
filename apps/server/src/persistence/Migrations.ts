@@ -142,28 +142,55 @@ const migrationNamesById = new Map<number, string>(
  * stores each migration's name next to its id, so a mismatch at any shared id is proof
  * the two lineages diverged. Fail loudly instead of booting on a half-migrated schema.
  */
-const assertOwnMigrationLineage = Effect.fn("assertOwnMigrationLineage")(function* () {
+/** A migration id that this build and the database disagree about the meaning of. */
+export interface MigrationLineageMismatch {
+  readonly migrationId: number;
+  readonly recordedName: string;
+  readonly expectedName: string;
+}
+
+/**
+ * Finds the first id where the database's ledger and this build's registry disagree.
+ *
+ * The migrator only runs migrations whose id is greater than the highest id already
+ * recorded, so ids are a high-water mark rather than a set. That makes the id space a
+ * lineage: this fork numbers its own migrations in the range upstream will eventually
+ * reach, and a database migrated by some other build reports a mark that silently skips
+ * migrations this build still needs. The ledger stores each migration's name next to its
+ * id, so a mismatch at a shared id is proof the two lineages diverged.
+ *
+ * Returns the mismatch rather than failing so each caller can raise the error that suits
+ * it: server boot rejects the database, while the dev-db script explains which slot to
+ * renumber.
+ */
+export const findMigrationLineageMismatch = Effect.fn("findMigrationLineageMismatch")(function* () {
   const sql = yield* SqlClient.SqlClient;
 
   const ledgerTable = yield* sql<{ readonly name: string }>`
-    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
-  `;
+      SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+    `;
   // A database that has never been migrated has no ledger to compare against.
-  if (ledgerTable.length === 0) return;
+  if (ledgerTable.length === 0) return undefined;
 
   const recorded = yield* sql<{ readonly migration_id: number; readonly name: string }>`
-    SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id
-  `;
+      SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id
+    `;
 
   for (const row of recorded) {
-    const expectedName = migrationNamesById.get(row.migration_id);
+    const migrationId = Number(row.migration_id);
+    const expectedName = migrationNamesById.get(migrationId);
     if (expectedName !== undefined && expectedName !== row.name) {
-      return yield* new ForeignMigrationLineageError({
-        migrationId: row.migration_id,
-        recordedName: row.name,
-        expectedName,
-      });
+      return { migrationId, recordedName: row.name, expectedName };
     }
+  }
+
+  return undefined;
+});
+
+const assertOwnMigrationLineage = Effect.fn("assertOwnMigrationLineage")(function* () {
+  const mismatch = yield* findMigrationLineageMismatch();
+  if (mismatch !== undefined) {
+    return yield* new ForeignMigrationLineageError(mismatch);
   }
 });
 
