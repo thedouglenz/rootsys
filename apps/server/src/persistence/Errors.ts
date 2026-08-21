@@ -43,6 +43,24 @@ export class PersistenceSqlError extends Schema.TaggedErrorClass<PersistenceSqlE
   }
 }
 
+export class ForeignMigrationLineageError extends Schema.TaggedErrorClass<ForeignMigrationLineageError>()(
+  "ForeignMigrationLineageError",
+  {
+    migrationId: Schema.Number,
+    recordedName: Schema.String,
+    expectedName: Schema.String,
+  },
+) {
+  override get message(): string {
+    return [
+      `This database was migrated by a different build: migration ${this.migrationId} is recorded`,
+      `as "${this.recordedName}", but this one expects "${this.expectedName}".`,
+      "rootsys keeps its own migration lineage, so a state.sqlite written by upstream T3 Code cannot",
+      "be opened directly. Start from a fresh state directory instead.",
+    ].join(" ");
+  }
+}
+
 export class PersistenceDecodeError extends Schema.TaggedErrorClass<PersistenceDecodeError>()(
   "PersistenceDecodeError",
   {

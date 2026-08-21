@@ -84,6 +84,30 @@ fork rots. Worked examples from the 59-commit sync:
 When upstream introduces a registry where we had scattered edits, that is a _win_ —
 take it and delete our scatter.
 
+## 4b. Migrations: rootsys owns its own lineage
+
+We hold migration ids 41, 42, 43 (`ProjectionDags`, `ProjectionThreadsDagLink`,
+`McpCredentials`). Upstream's last is 40, so **the next migration upstream writes will
+collide with ours.**
+
+When an upstream migration arrives, do not keep its number. Renumber it to the next free
+id in our sequence (44, then 45, ...) and rename its file to match. rootsys databases are
+a separate lineage from upstream databases; only our numbering ever runs against them, so
+a divergent id is correct rather than a compromise.
+
+Do NOT "fix" this by moving our migrations to a high range like 900+. The migrator skips
+every migration whose id is `<=` the highest id already recorded
+(`effect/unstable/sql/Migrator.ts`, the `currentId <= latestMigrationId` check) — ids are
+a high-water mark, not a set. Renumbering ours to 900 would make every future upstream
+migration below 900 silently skip on databases that had already reached 902.
+
+`runMigrations` guards the other direction: it compares each recorded `(id, name)` in
+`effect_sql_migrations` against `migrationEntries` and fails with
+`ForeignMigrationLineageError` if a shared id carries a different name. That is what stops
+a `state.sqlite` copied from upstream T3 Code from booting on a half-migrated schema. If
+you renumber an upstream migration into our range, that guard is why the name must be
+recorded exactly as we list it.
+
 ## 5. Verify before committing
 
 ```bash

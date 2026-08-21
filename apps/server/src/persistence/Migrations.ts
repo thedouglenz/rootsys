@@ -9,8 +9,11 @@
  */
 
 import * as Migrator from "effect/unstable/sql/Migrator";
+import * as SqlClient from "effect/unstable/sql/SqlClient";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+
+import { ForeignMigrationLineageError } from "./Errors.ts";
 
 // Import all migrations statically
 import Migration0001 from "./Migrations/001_OrchestrationEvents.ts";
@@ -124,6 +127,46 @@ export const makeMigrationLoader = (throughId?: number) =>
     ),
   );
 
+const migrationNamesById = new Map<number, string>(
+  migrationEntries.map(([id, name]) => [id, name]),
+);
+
+/**
+ * Rejects a database that some other build migrated.
+ *
+ * The migrator only runs migrations whose id is greater than the highest id already
+ * recorded, so ids are a high-water mark rather than a set. That makes the id space a
+ * lineage: this fork numbers its own migrations in the same range upstream will
+ * eventually reach, and a `state.sqlite` carried over from upstream would report a
+ * high-water mark that silently skips migrations this build still needs. The ledger
+ * stores each migration's name next to its id, so a mismatch at any shared id is proof
+ * the two lineages diverged. Fail loudly instead of booting on a half-migrated schema.
+ */
+const assertOwnMigrationLineage = Effect.fn("assertOwnMigrationLineage")(function* () {
+  const sql = yield* SqlClient.SqlClient;
+
+  const ledgerTable = yield* sql<{ readonly name: string }>`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+  `;
+  // A database that has never been migrated has no ledger to compare against.
+  if (ledgerTable.length === 0) return;
+
+  const recorded = yield* sql<{ readonly migration_id: number; readonly name: string }>`
+    SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id
+  `;
+
+  for (const row of recorded) {
+    const expectedName = migrationNamesById.get(row.migration_id);
+    if (expectedName !== undefined && expectedName !== row.name) {
+      return yield* new ForeignMigrationLineageError({
+        migrationId: row.migration_id,
+        recordedName: row.name,
+        expectedName,
+      });
+    }
+  }
+});
+
 /**
  * Migrator run function - no schema dumping needed
  * Uses the base Migrator.make without platform dependencies
@@ -147,6 +190,7 @@ export interface RunMigrationsOptions {
 export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: RunMigrationsOptions = {}) {
+  yield* assertOwnMigrationLineage();
   const executedMigrations = yield* run({ loader: makeMigrationLoader(toMigrationInclusive) });
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
