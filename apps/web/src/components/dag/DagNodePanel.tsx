@@ -24,6 +24,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Switch } from "../ui/switch";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Textarea } from "../ui/textarea";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   buildDagNodeViews,
   dagBulkModelTargets,
@@ -211,6 +212,11 @@ export function DagNodePanel({
   };
 
   const executing = node.status === "running" || node.status === "blocked";
+  // The server freezes a finished node's content: `dag.node.upsert` and
+  // `dag.node.delete` are rejected until it is reopened. Status changes stay
+  // allowed, so Reopen is the way out.
+  const contentLocked = node.status === "done" || node.status === "skipped";
+  const fieldsReadOnly = readOnly || contentLocked;
 
   return (
     <aside className="flex h-full w-[360px] shrink-0 flex-col border-l border-border bg-background">
@@ -225,11 +231,16 @@ export function DagNodePanel({
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-4 p-3">
+          {contentLocked && !readOnly ? (
+            <p className="text-xs text-muted-foreground">
+              Finished — content is locked. Reopen to edit.
+            </p>
+          ) : null}
           <label className="grid gap-1.5">
             <span className="text-xs font-medium">Title</span>
             <Input
               value={title}
-              disabled={readOnly}
+              disabled={fieldsReadOnly}
               onChange={(event) => setTitle(event.target.value)}
               onBlur={saveTitle}
               onKeyDown={(event) => {
@@ -245,7 +256,7 @@ export function DagNodePanel({
             <Textarea
               size="sm"
               value={description}
-              disabled={readOnly}
+              disabled={fieldsReadOnly}
               placeholder="What to change and where."
               onChange={(event) => setDescription(event.target.value)}
               onBlur={saveDescription}
@@ -256,7 +267,7 @@ export function DagNodePanel({
             <Textarea
               size="sm"
               value={acceptance}
-              disabled={readOnly}
+              disabled={fieldsReadOnly}
               placeholder="How the executor proves it is done."
               onChange={(event) => setAcceptance(event.target.value)}
               onBlur={saveAcceptance}
@@ -272,7 +283,7 @@ export function DagNodePanel({
             </div>
             <Switch
               checked={node.parallelSafe}
-              disabled={readOnly}
+              disabled={fieldsReadOnly}
               onCheckedChange={(parallelSafe) =>
                 void dispatch({ type: "dag.node.upsert", dagId, nodeId: node.nodeId, parallelSafe })
               }
@@ -283,7 +294,7 @@ export function DagNodePanel({
             <p className="text-xs font-medium">Execution</p>
             <Select
               value={node.executionMode}
-              disabled={readOnly}
+              disabled={fieldsReadOnly}
               onValueChange={(value) => {
                 if (value === null || value === node.executionMode) return;
                 void dispatch({
@@ -317,10 +328,10 @@ export function DagNodePanel({
                   environmentId={environmentId}
                   value={node.modelSelection}
                   fallback={model.inherited}
-                  disabled={readOnly}
+                  disabled={fieldsReadOnly}
                   onChange={setModelSelection}
                 />
-                {readOnly || bulkTargets.length === 0 ? null : (
+                {fieldsReadOnly || bulkTargets.length === 0 ? null : (
                   <Menu>
                     <MenuTrigger
                       render={
@@ -346,7 +357,7 @@ export function DagNodePanel({
             </div>
             <p className="text-xs text-muted-foreground">
               {describeDagNodeModelSource(model.source)}
-              {model.source === "node" && !readOnly ? (
+              {model.source === "node" && !fieldsReadOnly ? (
                 <>
                   {" "}
                   <button
@@ -515,15 +526,38 @@ export function DagNodePanel({
               Reopen
             </Button>
           ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="ml-auto text-destructive"
-            onClick={() => void deleteNode()}
-          >
-            Delete
-          </Button>
+          {contentLocked ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="ml-auto inline-flex">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled
+                      className="text-destructive"
+                    >
+                      Delete
+                    </Button>
+                  </span>
+                }
+              />
+              <TooltipPopup side="top">
+                Finished — content is locked. Reopen to delete.
+              </TooltipPopup>
+            </Tooltip>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="ml-auto text-destructive"
+              onClick={() => void deleteNode()}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       )}
     </aside>

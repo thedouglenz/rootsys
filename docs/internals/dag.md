@@ -62,6 +62,30 @@ drift from the in-memory model.
 Clients subscribe with `orchestration.subscribeDag` (snapshot, optional
 catch-up by sequence, then raw `dag.*` events), mirroring `subscribeThread`.
 
+## Finished nodes are frozen
+
+A node whose status is `done` or `skipped` has locked content. Its description
+is the brief its executor worked from and its outcome summary is the record of
+what happened, so `dag.node.upsert` and `dag.node.delete` against it are
+rejected with an `OrchestrationCommandInvariantError` naming the node and the
+unlock path. `failed` is deliberately not frozen: fixing a brief and retrying
+is exactly what you want there. The frozen set is
+`DAG_NODE_SATISFIED_STATUSES`, wrapped as `isDagNodeContentFrozen` in the DAG
+decider.
+
+Content-frozen, lifecycle-open. `dag.node.status.set` is unrestricted in every
+direction — it is the unlock path (reopen to `pending`), the way to mark a node
+`skipped`, and the way to re-report a summary on an already-`done` node. An
+upsert that carries no content field at all (none of `title`, `description`,
+`acceptance`, `projectId`, `parallelSafe`, `executionMode`, `dependsOn`,
+`modelSelection`) is a no-op and stays legal rather than erroring.
+
+Edges are deliberately excluded. `dag.edge.add` and `dag.edge.remove` remain
+allowed even when an endpoint is finished, because topology is plan-level: the
+user restructuring the remainder of a plan should not be blocked by which nodes
+happen to have completed already. Only the finished node's own content is
+history.
+
 ## Thread ↔ DAG link
 
 Every thread shell and detail carries an optional `dagLink`

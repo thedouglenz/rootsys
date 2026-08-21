@@ -178,12 +178,18 @@ export function DagTimeline({
   environmentId,
   graph,
   snapshotSequence,
+  openToken = 0,
 }: {
   environmentId: EnvironmentId;
   graph: DagGraph;
   snapshotSequence: number;
+  /** Bump to expand the log, e.g. from the completion banner. */
+  openToken?: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (openToken > 0) setExpanded(true);
+  }, [openToken]);
   const pauseRequested =
     graph.dag.status === "paused" && graph.nodes.some((node) => node.status === "running");
   return (

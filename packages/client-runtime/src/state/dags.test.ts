@@ -12,6 +12,7 @@ import {
   applyDagStreamItem,
   buildDagNodeViews,
   EMPTY_ENVIRONMENT_DAG_STATE,
+  resolveDagPrimaryAction,
   resolveDagRunAction,
   resolveDagRunBlocker,
 } from "./dags.ts";
@@ -191,5 +192,34 @@ describe("resolveDagRunAction", () => {
     expect(resolveDagRunAction("running")).toBe("pause");
     expect(resolveDagRunAction("paused")).toBe("resume");
     expect(resolveDagRunAction("archived")).toBeNull();
+  });
+});
+
+describe("resolveDagPrimaryAction", () => {
+  function withStatus(status: DagGraph["dag"]["status"], nodes: DagGraph["nodes"]): DagGraph {
+    return { ...graph, dag: { ...graph.dag, status }, nodes };
+  }
+
+  it("reports finished only when every node is done or skipped", () => {
+    expect(resolveDagPrimaryAction(withStatus("completed", [node("a", "done")]))).toBe("finished");
+    expect(
+      resolveDagPrimaryAction(withStatus("completed", [node("a", "done"), node("b", "skipped")])),
+    ).toBe("finished");
+    // A failed node is still runnable, so the plan keeps its Run button.
+    expect(
+      resolveDagPrimaryAction(withStatus("completed", [node("a", "done"), node("b", "failed")])),
+    ).toBe("run");
+    // Reopening a node puts Run back.
+    expect(
+      resolveDagPrimaryAction(withStatus("completed", [node("a", "done"), node("b", "pending")])),
+    ).toBe("run");
+  });
+
+  it("leaves the other status actions alone", () => {
+    expect(resolveDagPrimaryAction(withStatus("running", [node("a", "done")]))).toBe("pause");
+    expect(resolveDagPrimaryAction(withStatus("paused", [node("a", "done")]))).toBe("resume");
+    expect(resolveDagPrimaryAction(withStatus("archived", [node("a", "done")]))).toBeNull();
+    // An empty plan is not "finished"; Run stays (disabled by the blocker).
+    expect(resolveDagPrimaryAction(withStatus("draft", []))).toBe("run");
   });
 });

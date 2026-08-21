@@ -80,10 +80,30 @@ const seedDag = Effect.gen(function* () {
   return model;
 });
 
-const expectInvariant = <A, R>(effect: Effect.Effect<A, unknown, R>) =>
+const expectInvariant = <A, R>(effect: Effect.Effect<A, unknown, R>, detail?: string) =>
   Effect.gen(function* () {
     const result = yield* Effect.flip(effect);
     expect(result).toBeInstanceOf(OrchestrationCommandInvariantError);
+    if (detail !== undefined) {
+      expect((result as OrchestrationCommandInvariantError).detail).toBe(detail);
+    }
+  });
+
+const nodeOf = (readModel: OrchestrationReadModel, id: string) =>
+  graphOf(readModel).nodes.find((candidate) => candidate.nodeId === node(id))!;
+
+/** Seed a->b->c and drive node `a` into a terminal status. */
+const seedWithFinishedA = (status: "done" | "failed" | "skipped", summary?: string) =>
+  Effect.gen(function* () {
+    const seeded = yield* seedDag;
+    return (yield* apply(seeded, {
+      type: "dag.node.status.set",
+      commandId: cmd(),
+      dagId,
+      nodeId: node("a"),
+      status,
+      ...(summary !== undefined ? { summary } : {}),
+    })).readModel;
   });
 
 it.layer(NodeServices.layer)("dag decider", (it) => {
@@ -286,6 +306,171 @@ it.layer(NodeServices.layer)("dag decider", (it) => {
     }),
   );
 
+  it.effect("a done or skipped node rejects content edits and deletion", () =>
+    Effect.gen(function* () {
+      for (const status of ["done", "skipped"] as const) {
+        const model = yield* seedWithFinishedA(status, "shipped");
+        yield* expectInvariant(
+          apply(model, {
+            type: "dag.node.upsert",
+            commandId: cmd(),
+            dagId,
+            nodeId: node("a"),
+            description: "rewritten brief",
+          }),
+          `Node a is ${status} and its content is locked. Reopen it (set status pending) before editing.`,
+        );
+        // Any content-bearing field trips it, even an empty dependsOn that
+        // would otherwise pass every other check.
+        yield* expectInvariant(
+          apply(model, {
+            type: "dag.node.upsert",
+            commandId: cmd(),
+            dagId,
+            nodeId: node("a"),
+            dependsOn: [],
+          }),
+          `Node a is ${status} and its content is locked. Reopen it (set status pending) before editing.`,
+        );
+        yield* expectInvariant(
+          apply(model, { type: "dag.node.delete", commandId: cmd(), dagId, nodeId: node("a") }),
+          `Node a is ${status} and its content is locked. Reopen it (set status pending) before deleting.`,
+        );
+        // The record survived both attempts intact.
+        expect(nodeOf(model, "a").description).toBe("");
+        expect(nodeOf(model, "a").outcome?.summary).toBe("shipped");
+      }
+    }),
+  );
+
+  it.effect("reopening a done node to pending unlocks the same edit", () =>
+    Effect.gen(function* () {
+      let model = yield* seedWithFinishedA("done", "shipped");
+      model = (yield* apply(model, {
+        type: "dag.node.status.set",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+        status: "pending",
+      })).readModel;
+      model = (yield* apply(model, {
+        type: "dag.node.upsert",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+        description: "rewritten brief",
+        title: "Node a, take two",
+      })).readModel;
+      expect(nodeOf(model, "a").description).toBe("rewritten brief");
+      expect(nodeOf(model, "a").title).toBe("Node a, take two");
+      expect(nodeOf(model, "a").status).toBe("pending");
+    }),
+  );
+
+  it.effect("a content-free upsert on a done node is a harmless no-op", () =>
+    Effect.gen(function* () {
+      const model = yield* seedWithFinishedA("done", "shipped");
+      const before = nodeOf(model, "a");
+      const result = yield* apply(model, {
+        type: "dag.node.upsert",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+      });
+      const after = nodeOf(result.readModel, "a");
+      expect(after.title).toBe(before.title);
+      expect(after.description).toBe(before.description);
+      expect(after.acceptance).toBe(before.acceptance);
+      expect(after.status).toBe("done");
+      expect(after.outcome).toEqual(before.outcome);
+      expect(graphOf(result.readModel).edges).toEqual(graphOf(model).edges);
+    }),
+  );
+
+  it.effect("a failed node stays editable and deletable", () =>
+    Effect.gen(function* () {
+      let model = yield* seedWithFinishedA("failed", "blew up");
+      model = (yield* apply(model, {
+        type: "dag.node.upsert",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+        description: "clarified brief",
+      })).readModel;
+      expect(nodeOf(model, "a").description).toBe("clarified brief");
+      expect(nodeOf(model, "a").status).toBe("failed");
+      model = (yield* apply(model, {
+        type: "dag.node.delete",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+      })).readModel;
+      expect(graphOf(model).nodes.map((n) => n.nodeId)).toEqual([node("b"), node("c")]);
+    }),
+  );
+
+  it.effect("status.set stays open in every direction on a done node", () =>
+    Effect.gen(function* () {
+      let model = yield* seedWithFinishedA("done", "first pass");
+      // done -> done with a corrected summary.
+      model = (yield* apply(model, {
+        type: "dag.node.status.set",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+        status: "done",
+        summary: "second pass",
+      })).readModel;
+      expect(nodeOf(model, "a").outcome?.summary).toBe("second pass");
+      for (const status of [
+        "pending",
+        "running",
+        "blocked",
+        "failed",
+        "skipped",
+        "done",
+      ] as const) {
+        model = (yield* apply(model, {
+          type: "dag.node.status.set",
+          commandId: cmd(),
+          dagId,
+          nodeId: node("a"),
+          status,
+        })).readModel;
+        expect(nodeOf(model, "a").status).toBe(status);
+      }
+    }),
+  );
+
+  it.effect("explicit edge commands still work with a finished endpoint", () =>
+    Effect.gen(function* () {
+      let model = yield* seedWithFinishedA("done", "shipped");
+      model = (yield* apply(model, {
+        type: "dag.edge.add",
+        commandId: cmd(),
+        dagId,
+        fromNodeId: node("a"),
+        toNodeId: node("c"),
+      })).readModel;
+      expect(graphOf(model).edges.map((e) => `${e.fromNodeId}->${e.toNodeId}`)).toEqual([
+        "a->b",
+        "b->c",
+        "a->c",
+      ]);
+      model = (yield* apply(model, {
+        type: "dag.edge.remove",
+        commandId: cmd(),
+        dagId,
+        fromNodeId: node("a"),
+        toNodeId: node("b"),
+      })).readModel;
+      expect(graphOf(model).edges.map((e) => `${e.fromNodeId}->${e.toNodeId}`)).toEqual([
+        "b->c",
+        "a->c",
+      ]);
+    }),
+  );
+
   it.effect("dag.delete removes the graph; commands against it then fail", () =>
     Effect.gen(function* () {
       let model = yield* seedDag;
@@ -294,6 +479,24 @@ it.layer(NodeServices.layer)("dag decider", (it) => {
       yield* expectInvariant(
         apply(model, { type: "dag.status.set", commandId: cmd(), dagId, status: "ready" }),
       );
+    }),
+  );
+});
+
+it.layer(NodeServices.layer)("dag node upsert no-op", (it) => {
+  it.effect("a content-free upsert leaves the node's timestamp untouched", () =>
+    Effect.gen(function* () {
+      let model = yield* seedDag;
+      const before = graphOf(model).nodes.find((n) => n.nodeId === node("a"))!;
+      model = (yield* apply(model, {
+        type: "dag.node.upsert",
+        commandId: cmd(),
+        dagId,
+        nodeId: node("a"),
+      })).readModel;
+      const after = graphOf(model).nodes.find((n) => n.nodeId === node("a"))!;
+      expect(after.updatedAt).toBe(before.updatedAt);
+      expect(after.title).toBe(before.title);
     }),
   );
 });

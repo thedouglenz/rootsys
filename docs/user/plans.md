@@ -71,6 +71,15 @@ node, quotes what the provider said, and offers **Change model**. Resuming withi
 minutes of a refusal asks you to confirm first, since the same model is about to be
 tried again.
 
+When the last node finishes, the plan says so. A **Plan complete** banner above the
+canvas (and in a linked thread's **Plan** panel) gives the node counts, mentions any
+skipped or failed nodes, says how long ago the plan finished and how much time passed
+between the first node finishing and the last, and links straight into the **Run
+log**. With nothing left to run, the header shows **All nodes finished** where **Run**
+was; reopen a node and the button comes back. On the Plans page a finished plan reads
+as complete: a success pill, a full node count, and a row that steps back from the
+plans still in flight.
+
 ## Choosing models
 
 A node runs with the first model it finds: **its own**, else the **plan default**, else
@@ -123,6 +132,11 @@ A failed node stops the plan with a failed status. Open the node and choose **Re
 to queue it again and continue the plan; or **Skip** it and downstream nodes treat it as
 satisfied. **Mark done** records a node you finished by hand, and **Reopen** puts a
 done or skipped node back in the queue.
+
+A done or skipped node is locked: its title, description, acceptance, parallel-safe
+switch, execution mode, and model stay as the run left them, and it cannot be deleted.
+The node's panel says so and keeps **Reopen** available — reopening puts the node back
+to pending and makes it editable again.
 
 Archived plans stay readable but cannot be edited or run; toggle **Archived** on the
 Plans page to see them, and unarchive from the plan's menu. Deleting a plan removes

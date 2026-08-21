@@ -23,6 +23,7 @@ import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
+import { DagCompletionBanner } from "./DagCompletionBanner";
 import { buildDagNodeViews, type DagNodeView } from "./dagModel";
 import { DagPauseBanner } from "./DagPauseBanner";
 import { DagQuestionInbox } from "./DagQuestionInbox";
@@ -267,6 +268,8 @@ export function DagSidePanel({
         onChangeModel={openNodeModel}
         className="mx-3 mt-2"
       />
+      {/* The run log lives on the plan page, so this copy has no log action. */}
+      <DagCompletionBanner graph={graph} onOpenRunLog={null} className="mx-3 mt-2" />
       <DagQuestionInbox graph={graph} dispatch={dispatch} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {mode === "list" ? (

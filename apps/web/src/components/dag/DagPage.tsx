@@ -21,6 +21,7 @@ import {
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar";
 import { DagCompanionDock } from "./DagCompanionDock";
+import { DagCompletionBanner } from "./DagCompletionBanner";
 import { DagHeader } from "./DagHeader";
 import { mintDagNodeId } from "./dagModel";
 import { DagNodePanel } from "./DagNodePanel";
@@ -116,6 +117,9 @@ export function DagPage({
   // request is pinned to that node so picking another one lands normally.
   const [modelFocus, setModelFocus] = useState<{ nodeId: DagNodeId; token: number } | null>(null);
   const [planModelFocus, setPlanModelFocus] = useState(0);
+  // The completion banner's "Run log" opens the log at the bottom of the page.
+  const [runLogOpen, setRunLogOpen] = useState(0);
+  const openRunLog = useCallback(() => setRunLogOpen((token) => token + 1), []);
   const selectNode = useCallback((nodeId: DagNodeId | null) => {
     setModelFocus(null);
     setSelectedNodeId(nodeId);
@@ -235,6 +239,7 @@ export function DagPage({
             onChangeModel={readOnly ? null : focusModelFor}
             className="mx-3 mt-2"
           />
+          <DagCompletionBanner graph={graph} onOpenRunLog={openRunLog} className="mx-3 mt-2" />
           <div className="relative min-h-0 flex-1">
             <Suspense
               fallback={
@@ -273,6 +278,7 @@ export function DagPage({
             environmentId={environmentId}
             graph={graph}
             snapshotSequence={state?.snapshotSequence ?? 0}
+            openToken={runLogOpen}
           />
         </div>
         {selectedNode ? (

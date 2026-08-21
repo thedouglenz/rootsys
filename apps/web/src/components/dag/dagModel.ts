@@ -12,8 +12,11 @@ export {
   DAG_RUN_BLOCKER_HINTS,
   type DagNodeDisplayStatus,
   type DagNodeView,
+  type DagPrimaryAction,
   type DagRunAction,
   type DagRunBlocker,
+  hasRunnableDagNodes,
+  resolveDagPrimaryAction,
   resolveDagRunAction,
   resolveDagRunBlocker,
 } from "@t3tools/client-runtime/state/dags";

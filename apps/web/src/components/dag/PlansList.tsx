@@ -30,12 +30,18 @@ function PlanRow({
   dag: DagShell;
   projectTitle: string | null;
 }) {
+  // A finished plan is history: the success pill carries the state and the
+  // row steps back so unfinished work reads first.
+  const completed = dag.status === "completed";
   return (
     <li>
       <Link
         to="/plans/$environmentId/$dagId"
         params={{ environmentId, dagId: dag.dagId }}
-        className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 hover:bg-accent/40"
+        className={cn(
+          "flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5 hover:bg-accent/40",
+          completed && "bg-card/50 text-muted-foreground",
+        )}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="truncate text-sm font-medium">{dag.title}</span>

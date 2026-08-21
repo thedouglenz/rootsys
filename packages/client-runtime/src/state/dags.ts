@@ -221,3 +221,24 @@ export function resolveDagRunAction(status: DagStatus): DagRunAction {
       return null;
   }
 }
+
+/**
+ * The primary control the plan header shows. `finished` is the status action
+ * refined by what is left to do: every node is done or skipped, so Run would
+ * start nothing and the header shows a label instead. Reopening a node puts
+ * it back to `pending`, and the action becomes `run` again.
+ */
+export type DagPrimaryAction = DagRunAction | "finished";
+
+/** True while some node could still run: anything not done or skipped. */
+export function hasRunnableDagNodes(graph: Pick<DagGraph, "nodes">): boolean {
+  return graph.nodes.some((node) => node.status !== "done" && node.status !== "skipped");
+}
+
+export function resolveDagPrimaryAction(graph: Pick<DagGraph, "dag" | "nodes">): DagPrimaryAction {
+  const action = resolveDagRunAction(graph.dag.status);
+  // An empty plan keeps Run (disabled, with the "add a node" hint) rather
+  // than claiming to be finished.
+  if (action !== "run" || graph.nodes.length === 0) return action;
+  return hasRunnableDagNodes(graph) ? "run" : "finished";
+}

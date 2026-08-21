@@ -22,7 +22,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useDagCompanionDock } from "./DagCompanionDock";
 import { DagModelPicker } from "./DagModelPicker";
-import { DAG_RUN_BLOCKER_HINTS, resolveDagRunAction, resolveDagRunBlocker } from "./dagModel";
+import { DAG_RUN_BLOCKER_HINTS, resolveDagPrimaryAction, resolveDagRunBlocker } from "./dagModel";
 import { buildDagResumeConfirmMessage, shouldConfirmDagResume } from "./dagPause";
 import { DagPlannerDialog } from "./DagPlannerDialog";
 import { DagStatusBadge } from "./DagStatusBadge";
@@ -67,7 +67,7 @@ export function DagHeader({
     graph,
     projectDefaultModelSelection: projectDefaultModel,
   });
-  const runAction = resolveDagRunAction(dag.status);
+  const runAction = resolveDagPrimaryAction(graph);
   const archived = dag.status === "archived";
   const progress = dagProgress(graph);
   const pauseRequested =
@@ -118,6 +118,11 @@ export function DagHeader({
 
   const runButton = (() => {
     if (runAction === null) return null;
+    // Nothing is pending, running, blocked, or failed: Run would start
+    // nothing. Reopening a node brings the button back.
+    if (runAction === "finished") {
+      return <span className="px-1 text-xs text-muted-foreground">All nodes finished</span>;
+    }
     if (runAction === "pause") {
       return (
         <Button

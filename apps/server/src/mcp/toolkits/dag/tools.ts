@@ -146,7 +146,7 @@ export const DagUpdateTool = mutatingTool(
 export const DagUpsertNodeTool = mutatingTool(
   Tool.make("dag_upsert_node", {
     description:
-      "Create or update a node. Omit nodeId to create (a slug id is minted from the title; title required). On update, omitted fields are unchanged. dependsOn adds dependency edges (each must exist; cycles are rejected). Give every node a concrete `acceptance` — how an executor proves it is done — and set parallelSafe=true only if the node touches files no sibling touches.",
+      "Create or update a node. Omit nodeId to create (a slug id is minted from the title; title required). On update, omitted fields are unchanged. dependsOn adds dependency edges (each must exist; cycles are rejected). Give every node a concrete `acceptance` — how an executor proves it is done — and set parallelSafe=true only if the node touches files no sibling touches. A node that is done or skipped has locked content: edits are rejected until you reopen it with dag_set_node_status status=pending. (failed nodes stay editable, so you can fix a brief and retry.)",
     parameters: Schema.Struct({
       dagId: OptionalDagId,
       nodeId: Schema.optional(DagNodeId),
@@ -195,7 +195,8 @@ export const DagListModelsTool = readonlyTool(
 
 export const DagDeleteNodeTool = mutatingTool(
   Tool.make("dag_delete_node", {
-    description: "Delete a node and every edge/question attached to it.",
+    description:
+      "Delete a node and every edge/question attached to it. A node that is done or skipped is locked: reopen it with dag_set_node_status status=pending first. Prefer status=skipped over deleting planned-but-unwanted work.",
     parameters: Schema.Struct({ dagId: OptionalDagId, nodeId: DagNodeId }),
     success: Schema.Struct({ deleted: Schema.Literal(true) }),
     failure: DagToolError,

@@ -10,6 +10,8 @@
  * and acyclicity. Status commands are permissive about transitions — the
  * engine and MCP tools are the callers and the event log is the audit —
  * but always reject unknown nodes/questions and deleted DAGs.
+ *
+ * A finished node's content is frozen: see `isDagNodeContentFrozen`.
  */
 import {
   type DagCommand,
@@ -20,6 +22,7 @@ import {
   type DagQuestion,
   type OrchestrationEvent,
   type OrchestrationReadModel,
+  DAG_NODE_SATISFIED_STATUSES,
   DAG_NODE_TERMINAL_STATUSES,
   dagEdgeWouldCreateCycle,
   EventId,
@@ -104,6 +107,34 @@ function withDagEventBase(input: {
 
 const edgeExists = (edges: ReadonlyArray<DagEdge>, from: string, to: string) =>
   edges.some((edge) => edge.fromNodeId === from && edge.toNodeId === to);
+
+/**
+ * A node that finished has a record worth keeping: its description is the
+ * brief its executor worked from and its outcome is what actually happened.
+ * Rewriting either silently rewrites history, so content edits and deletion
+ * are rejected on these statuses. `failed` is deliberately absent — fixing a
+ * description and retrying is the point. Lifecycle stays open in every
+ * direction (`dag.node.status.set`), which is also the unlock path.
+ */
+export const isDagNodeContentFrozen = (status: DagNodeStatus): boolean =>
+  DAG_NODE_SATISFIED_STATUSES.has(status);
+
+/**
+ * True when an upsert would change stored node content. An upsert carrying
+ * none of these is a no-op and stays legal against a frozen node.
+ */
+const carriesContentChange = (command: Extract<DagCommand, { type: "dag.node.upsert" }>) =>
+  command.title !== undefined ||
+  command.description !== undefined ||
+  command.acceptance !== undefined ||
+  command.projectId !== undefined ||
+  command.parallelSafe !== undefined ||
+  command.executionMode !== undefined ||
+  command.modelSelection !== undefined ||
+  command.dependsOn !== undefined;
+
+const frozenDetail = (node: DagNode, verb: "editing" | "deleting") =>
+  `Node ${node.nodeId} is ${node.status} and its content is locked. Reopen it (set status pending) before ${verb}.`;
 
 export const decideDagCommand = Effect.fn("decideDagCommand")(function* ({
   command,
@@ -190,9 +221,16 @@ export const decideDagCommand = Effect.fn("decideDagCommand")(function* ({
 
     case "dag.node.upsert": {
       const graph = yield* requireDag(readModel, command);
+      const existing = graph.nodes.find((candidate) => candidate.nodeId === command.nodeId);
+      if (
+        existing !== undefined &&
+        isDagNodeContentFrozen(existing.status) &&
+        carriesContentChange(command)
+      ) {
+        return yield* invariant(command, frozenDetail(existing, "editing"));
+      }
       yield* requireProjectIfPresent(readModel, command, command.projectId);
       const occurredAt = yield* nowIso;
-      const existing = graph.nodes.find((candidate) => candidate.nodeId === command.nodeId);
       if (existing === undefined && command.title === undefined) {
         return yield* invariant(command, `Creating node ${command.nodeId} requires a title.`);
       }
@@ -253,18 +291,29 @@ export const decideDagCommand = Effect.fn("decideDagCommand")(function* ({
               ...(command.modelSelection !== undefined
                 ? { modelSelection: command.modelSelection }
                 : {}),
-              updatedAt: occurredAt,
+              // An upsert carrying no content leaves the node exactly as it
+              // was, so it must not move its timestamp either — same posture
+              // as a duplicate dag.status.set. Keeps a re-sent command
+              // (double-click, raced client) a true no-op.
+              updatedAt:
+                carriesContentChange(command) || addedEdges.length > 0
+                  ? occurredAt
+                  : existing.updatedAt,
             };
+      const updatedAt = existing === undefined ? occurredAt : node.updatedAt;
       return {
         ...(yield* withDagEventBase({ command, occurredAt })),
         type: "dag.node-upserted",
-        payload: { dagId: command.dagId, node, addedEdges, updatedAt: occurredAt },
+        payload: { dagId: command.dagId, node, addedEdges, updatedAt },
       };
     }
 
     case "dag.node.delete": {
       const graph = yield* requireDag(readModel, command);
-      yield* requireNode(graph, command, command.nodeId);
+      const node = yield* requireNode(graph, command, command.nodeId);
+      if (isDagNodeContentFrozen(node.status)) {
+        return yield* invariant(command, frozenDetail(node, "deleting"));
+      }
       const occurredAt = yield* nowIso;
       // Incident edges and open questions are removed by the projector.
       return {

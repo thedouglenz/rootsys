@@ -2,7 +2,7 @@ import { useNavigation, type StaticScreenProps } from "@react-navigation/native"
 import {
   DAG_RUN_BLOCKER_HINTS,
   type DagNodeView,
-  resolveDagRunAction,
+  resolveDagPrimaryAction,
   resolveDagRunBlocker,
 } from "@t3tools/client-runtime/state/dags";
 import {
@@ -99,7 +99,9 @@ function PlanHeader(props: {
     graph: props.graph,
     projectDefaultModelSelection: project?.defaultModelSelection ?? null,
   });
-  const runAction = resolveDagRunAction(dag.status);
+  // Graph-aware: a plan whose nodes are all finished offers no run
+  // action at all, matching the web header.
+  const runAction = resolveDagPrimaryAction(props.graph);
   const tone = dagStatusTone(dag.status);
   const doneCount = props.graph.nodes.filter(
     (node) => node.status === "done" || node.status === "skipped",
@@ -125,7 +127,10 @@ function PlanHeader(props: {
       {dag.description.length > 0 ? (
         <Text className="text-sm leading-normal text-foreground-muted">{dag.description}</Text>
       ) : null}
-      {runAction === null ? null : (
+      {runAction === "finished" ? (
+        <Text className="text-xs text-foreground-muted">All nodes finished</Text>
+      ) : null}
+      {runAction === null || runAction === "finished" ? null : (
         <View className="gap-2">
           <View className="flex-row">
             {runAction === "pause" ? (
