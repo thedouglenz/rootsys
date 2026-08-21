@@ -171,7 +171,7 @@ export function PlansList() {
                   </EmptyMedia>
                   <EmptyTitle>No environment connected</EmptyTitle>
                   <EmptyDescription>
-                    Plans live on a T3 Code server. Connect one to see or create plans.
+                    Plans live on a rootsys server. Connect one to see or create plans.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>

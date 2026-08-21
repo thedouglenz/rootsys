@@ -1,5 +1,5 @@
 /**
- * DAG contracts — the project plan graph that rootsys layers on top of T3 Code.
+ * DAG contracts — the project plan graph that rootsys layers on top of rootsys.
  *
  * A `Dag` is an environment-scoped aggregate: it is not owned by a project so
  * that its nodes can eventually target more than one project/repo. Today
