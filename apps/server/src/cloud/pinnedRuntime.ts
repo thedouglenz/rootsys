@@ -7,12 +7,13 @@ import * as Option from "effect/Option";
 import * as Semaphore from "effect/Semaphore";
 
 import * as ProcessRunner from "../processRunner.ts";
+import packageJson from "../../package.json" with { type: "json" };
 
 /**
- * A pinned runtime is an exact `t3@<version>` npm-installed into
+ * A pinned runtime is an exact `<package>@<version>` npm-installed into
  * <baseDir>/runtime/versions/<version>. The boot service points its unit or
  * launch agent here, and server self-update installs the target version here before
- * switching over, never `npx t3`, whose cache is ephemeral and whose
+ * switching over, never `npx <package>`, whose cache is ephemeral and whose
  * registry fetch at boot would make startup depend on the network.
  */
 
@@ -36,7 +37,7 @@ export function pinnedRuntimePaths(
   const versionDir = path.join(baseDir, PINNED_RUNTIME_DIR, "versions", version);
   return {
     versionDir,
-    entryPath: path.join(versionDir, "node_modules", "t3", "dist", "bin.mjs"),
+    entryPath: path.join(versionDir, "node_modules", packageJson.name, "dist", "bin.mjs"),
     sentinelPath: path.join(versionDir, ".install-complete"),
   };
 }
@@ -71,7 +72,7 @@ export class PinnedRuntimePreflightBlockedError extends Schema.TaggedErrorClass<
 }
 
 /**
- * Installs `t3@<version>` into the pinned runtime directory unless a complete
+ * Installs `<package>@<version>` into the pinned runtime directory unless a complete
  * install is already there, and returns its paths. The sentinel is written
  * only after npm exits 0; checking the entry file alone is not enough. npm
  * extracts files before running native builds (node-pty), so a killed
@@ -146,7 +147,7 @@ const installPinnedRuntime = Effect.fn("cloud.pinned_runtime.ensure_installed")(
     );
   const stagingPaths: PinnedRuntimePaths = {
     versionDir: stagingDir,
-    entryPath: input.path.join(stagingDir, "node_modules", "t3", "dist", "bin.mjs"),
+    entryPath: input.path.join(stagingDir, "node_modules", packageJson.name, "dist", "bin.mjs"),
     sentinelPath: input.path.join(stagingDir, ".install-complete"),
   };
 
@@ -155,7 +156,14 @@ const installPinnedRuntime = Effect.fn("cloud.pinned_runtime.ensure_installed")(
     yield* runner
       .run({
         command: "npm",
-        args: ["install", "--prefix", stagingDir, "--no-fund", "--no-audit", `t3@${input.version}`],
+        args: [
+          "install",
+          "--prefix",
+          stagingDir,
+          "--no-fund",
+          "--no-audit",
+          `${packageJson.name}@${input.version}`,
+        ],
         // Native dependencies may compile from source on slower machines.
         timeout: PINNED_RUNTIME_INSTALL_TIMEOUT,
       })
