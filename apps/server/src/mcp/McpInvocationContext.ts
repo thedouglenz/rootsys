@@ -24,7 +24,7 @@ export interface McpInvocationScope {
 export class McpInvocationContext extends Context.Service<
   McpInvocationContext,
   McpInvocationScope
->()("t3/mcp/McpInvocationContext") {}
+>()("rootsys/mcp/McpInvocationContext") {}
 
 // Preview-specific: the DAG toolkit performs its own capability check with
 // its own error type (see toolkits/dag/handlers.ts).

@@ -80,4 +80,4 @@ export interface McpCredentialRepositoryShape {
 export class McpCredentialRepository extends Context.Service<
   McpCredentialRepository,
   McpCredentialRepositoryShape
->()("t3/persistence/Services/McpCredentials/McpCredentialRepository") {}
+>()("rootsys/persistence/Services/McpCredentials/McpCredentialRepository") {}

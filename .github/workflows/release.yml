@@ -293,7 +293,7 @@ jobs:
           cache: true
           run-install: |
             args:
-              - --filter=t3...
+              - --filter=rootsys...
 
       - name: Build node-pty linux-x64 prebuild
         shell: bash
@@ -389,7 +389,7 @@ jobs:
           run-install: |
             args:
               - --filter=@t3tools/desktop...
-              - --filter=t3...
+              - --filter=rootsys...
               - --filter=@t3tools/scripts...
 
       - name: Setup Rust
@@ -693,7 +693,7 @@ jobs:
           cache: true
           run-install: |
             args:
-              - --filter=t3...
+              - --filter=rootsys...
               - --filter=@t3tools/web...
               - --filter=@t3tools/scripts...
 
@@ -718,7 +718,7 @@ jobs:
         run: vp run --filter @t3tools/web build
 
       - name: Build CLI package
-        run: vp run --filter t3 build
+        run: vp run --filter rootsys build
 
       - name: Download resource monitors
         uses: actions/download-artifact@v8
