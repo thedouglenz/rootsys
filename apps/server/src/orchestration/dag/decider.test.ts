@@ -80,7 +80,7 @@ const seedDag = Effect.gen(function* () {
   return model;
 });
 
-const expectInvariant = <A, R>(effect: Effect.Effect<A, unknown, R>, detail?: string) =>
+const expectInvariant = <A, E, R>(effect: Effect.Effect<A, E, R>, detail?: string) =>
   Effect.gen(function* () {
     const result = yield* Effect.flip(effect);
     expect(result).toBeInstanceOf(OrchestrationCommandInvariantError);

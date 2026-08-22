@@ -1,10 +1,14 @@
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { runMigrations } from "../Migrations.ts";
 import * as NodeSqliteClient from "../NodeSqliteClient.ts";
+
+const encodeUnknownJson = Schema.encodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
+const decodeUnknownJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
 const layer = it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()));
 
@@ -47,7 +51,7 @@ it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()))("042 backfill", (it) =>
       `;
       yield* threadRow("thread-bound");
       yield* threadRow("thread-free");
-      const graph = JSON.stringify({
+      const graph = encodeUnknownJson({
         dag: {
           dagId: "dag-1",
           title: "Plan",
@@ -79,7 +83,7 @@ it.layer(Layer.mergeAll(NodeSqliteClient.layerMemory()))("042 backfill", (it) =>
         SELECT thread_id, dag_link_json FROM projection_threads ORDER BY thread_id
       `;
       const byId = new Map(rows.map((row) => [row.thread_id, row.dag_link_json]));
-      assert.deepEqual(JSON.parse(byId.get("thread-bound")!), {
+      assert.deepEqual(decodeUnknownJson(byId.get("thread-bound")!), {
         dagId: "dag-1",
         nodeId: "node-a",
         role: "executor",

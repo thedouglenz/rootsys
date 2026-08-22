@@ -100,6 +100,12 @@ const TestLayer = DagToolkitHandlersLive.pipe(
   Layer.provideMerge(StubProviderRegistry),
 );
 
+/**
+ * A tool's JSON result. Named rather than `unknown` so `Effect.flip` on a call does
+ * not move `unknown` into the error channel.
+ */
+type ToolResult = { readonly [key: string]: unknown };
+
 /** Runs a toolkit call as if the MCP server had received it from `threadId`. */
 const call = <Name extends keyof typeof DagToolkit.tools>(
   threadId: ThreadId,
@@ -114,8 +120,8 @@ const call = <Name extends keyof typeof DagToolkit.tools>(
     const last = results[results.length - 1];
     if (last === undefined) return yield* Effect.die("tool produced no result");
     // Declared failures are returned as results (isFailure), not raised.
-    if (last.isFailure) return yield* Effect.fail(last.result);
-    return last.result as unknown;
+    if (last.isFailure) return yield* Effect.fail(last.result as DagToolError);
+    return last.result as ToolResult;
   }).pipe(
     Effect.provideService(
       McpInvocationContext.McpInvocationContext,
@@ -140,7 +146,7 @@ it.layer(TestLayer)("dag toolkit handlers", (it) => {
       // Capability gate.
       const denied = yield* Effect.flip(call(plannerThread, "dag_list", {}, []));
       expect(denied).toBeInstanceOf(DagToolError);
-      expect((denied as DagToolError).reason).toBe("capability-unavailable");
+      expect(denied.reason).toBe("capability-unavailable");
 
       // Planner (no bound node) creates a DAG explicitly scoped to the project.
       const created = (yield* call(plannerThread, "dag_create", {
@@ -192,7 +198,7 @@ it.layer(TestLayer)("dag toolkit handlers", (it) => {
       const invalid = yield* Effect.flip(
         call(plannerThread, "dag_upsert_node", { dagId, description: "x" }),
       );
-      expect((invalid as DagToolError).reason).toBe("invalid-input");
+      expect(invalid.reason).toBe("invalid-input");
 
       // Cycle rejected through the decider.
       const cyclic = yield* Effect.flip(
@@ -202,7 +208,7 @@ it.layer(TestLayer)("dag toolkit handlers", (it) => {
           toNodeId: a.node.nodeId,
         }),
       );
-      expect((cyclic as DagToolError).reason).toBe("rejected");
+      expect(cyclic.reason).toBe("rejected");
 
       const validation = (yield* call(plannerThread, "dag_validate", { dagId })) as {
         ok: boolean;
@@ -222,7 +228,7 @@ it.layer(TestLayer)("dag toolkit handlers", (it) => {
       const unbound = yield* Effect.flip(
         call(executorThread, "dag_set_node_status", { status: "running" }),
       );
-      expect((unbound as DagToolError).reason).toBe("no-bound-node");
+      expect(unbound.reason).toBe("no-bound-node");
       // ... but starting work (running) on an explicit unbound node binds the thread to it.
       yield* call(executorThread, "dag_set_node_status", {
         dagId,
