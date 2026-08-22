@@ -31,6 +31,11 @@ import {
 
 interface PackageJson {
   name: string;
+  description?: string | undefined;
+  keywords?: ReadonlyArray<string> | undefined;
+  author?: string | undefined;
+  license?: string | undefined;
+  homepage?: string | undefined;
   repository: {
     type: string;
     url: string;
@@ -243,6 +248,13 @@ const publishCmd = Command.make(
           const workspaceOverrides = workspaceConfig.overrides ?? {};
           const pkg: PackageJson = {
             name: serverPackageJson.name,
+            // Provenance has to travel with the artifact: MIT requires the notice in
+            // every copy, and npm renders description/homepage on the package page.
+            description: serverPackageJson.description,
+            keywords: serverPackageJson.keywords,
+            author: serverPackageJson.author,
+            license: serverPackageJson.license,
+            homepage: serverPackageJson.homepage,
             repository: serverPackageJson.repository,
             bin: serverPackageJson.bin,
             type: serverPackageJson.type,
