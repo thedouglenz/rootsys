@@ -139,6 +139,21 @@ GitHub-hosted label (`ubuntu-24.04`, `macos-latest`), which is free on public re
 Tagged releases go through `publish-cli.yml`. Merges that restore a `push:` or `schedule:`
 trigger put a failing (or, for the nightly cron, three-hourly failing) job back.
 
+**The lint ledger.** `oxlint-plugin-t3code/rules/no-manual-effect-runtime-in-tests.ts` carries
+a per-file budget of legacy manual-runtime calls. rootsys records
+`ProviderCommandReactor.test.ts` at 71 where upstream says 70, because a rootsys test added
+one in that file's own idiom. Merges will bring back upstream's number. Note that the rule
+counts every occurrence and reports whichever is past the budget **in source order**, so an
+inline `oxlint-disable` on "our" call does nothing — the error just moves to someone else's.
+Either genuinely reduce the file's count or record the real one.
+
+**One state directory.** Three places resolve where the app keeps state, and they must agree
+on `~/.rootsys`: `apps/server/src/os-jank.ts` (`resolveBaseDir`),
+`apps/desktop/src/app/DesktopStatePaths.ts`, and `DEFAULT_T3_HOME` in `scripts/dev-runner.ts`.
+Miss one and a dev server writes to `~/.t3/dev` while the desktop reads `~/.rootsys/dev`. The
+worktree-local `<worktree>/.t3` from `packages/shared/src/devHome.ts` is a different thing and
+stays as it is.
+
 **Repo pointers.** `apps/server/src/cli/triagePrompt.ts` must name `thedouglenz/rootsys`, or
 `rootsys triage` fetches upstream's playbook and files issues on their tracker.
 `triagePrompt.test.ts` asserts the prompt is **byte-identical** to
@@ -175,6 +190,10 @@ pnpm exec vp lint <resolved files>
 
 Never run repo-wide checks (`vp check`, `vp run -r test`) for a routine merge — CI owns
 those, and they are slow enough to hide the signal.
+
+**`vp lint` is not `vp check`.** CI's Check job runs `vp check`, which reported an error on a
+tree where `vp lint` reported none. If you are chasing a red Check job, reproduce it with
+`vp check`, and read the output rather than grepping it — a narrow grep hid this twice.
 
 `apps/server` typechecks clean as of #1, so there is no longer a baseline of expected
 noise. Any `TS377049` / `TS377030` / `TS377026` you see is real.
