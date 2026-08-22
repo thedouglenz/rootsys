@@ -61,7 +61,7 @@ export class TraceDiagnostics extends Context.Service<
       options: TraceDiagnosticsOptions,
     ) => Effect.Effect<ServerTraceDiagnosticsResult>;
   }
->()("rootsys/diagnostics/TraceDiagnostics") {}
+>()("@thedouglenz/trellis/diagnostics/TraceDiagnostics") {}
 
 interface TraceDiagnosticsInput {
   readonly traceFilePath: string;

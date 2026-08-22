@@ -25,7 +25,7 @@ export function runServicePreflight(input: {
       status: "blocked",
       version,
       reason:
-        "This release requires a newer rootsys service launcher. Update it on the server machine.",
+        "This release requires a newer trellis service launcher. Update it on the server machine.",
     };
   }
 

@@ -39,7 +39,7 @@ export function getProviderSummary(provider: ServerProvider | undefined) {
     return {
       headline: "Disabled",
       detail:
-        provider.message ?? "This provider is installed but disabled for new sessions in rootsys.",
+        provider.message ?? "This provider is installed but disabled for new sessions in trellis.",
     };
   }
   if (!provider.installed) {

@@ -1,8 +1,8 @@
 /**
  * UsageService - scans provider transcripts and returns priced usage buckets.
  *
- * The scan reads the provider CLIs' own session files rather than rootsys's
- * orchestration projections, so usage covers turns driven outside rootsys too.
+ * The scan reads the provider CLIs' own session files rather than trellis's
+ * orchestration projections, so usage covers turns driven outside trellis too.
  * This is the approach `ccusage` takes.
  *
  * Transcripts are append-only, so parsed records are memoised per file by
@@ -91,7 +91,7 @@ export class UsageService extends Context.Service<
   {
     readonly readSummary: (input: UsageSummaryInput) => Effect.Effect<UsageSummary, UsageReadError>;
   }
->()("rootsys/usage/UsageService") {}
+>()("@thedouglenz/trellis/usage/UsageService") {}
 
 /** Empty summary, for suites that only need the RPC surface to resolve. */
 export const layerTest = Layer.succeed(

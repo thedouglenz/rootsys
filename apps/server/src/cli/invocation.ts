@@ -16,7 +16,7 @@ export type CliRunner = "npx" | "pnpm dlx" | "bunx";
  *   bunx     ~/.bun/install/cache/... or $TMPDIR/bunx-<uid>-<spec>/...
  *
  * Global installs and repo checkouts match none of these and return null.
- * Detection is best-effort; callers must fail closed to a plain `rootsys` command.
+ * Detection is best-effort; callers must fail closed to a plain `trellis` command.
  */
 export function detectCliRunner(entryPath: string): CliRunner | null {
   const path = entryPath.replaceAll("\\", "/");
@@ -37,19 +37,19 @@ export function detectCliRunner(entryPath: string): CliRunner | null {
 }
 
 /**
- * The `rootsys` package spec to suggest. The literal spec the user typed (e.g.
- * `rootsys@nightly`) is resolved away before our process starts, so re-derive it
- * from the running version: nightly builds re-suggest the nightly channel,
- * anything else suggests the bare package.
+ * The npm spec to suggest to a package runner. This is the scoped package name, not
+ * the `trellis` bin: `npx @thedouglenz/trellis` would resolve to somebody else's package. The
+ * literal spec the user typed is resolved away before our process starts, so re-derive
+ * it from the running version — nightly builds re-suggest the nightly channel.
  */
 export function suggestedPackageSpec(version: string): string {
-  return version.includes("-nightly.") ? "rootsys@nightly" : "rootsys";
+  return version.includes("-nightly.") ? `${packageJson.name}@nightly` : packageJson.name;
 }
 
 /**
- * Render a `rootsys <subcommand>` suggestion that matches how this process was
- * launched, so copy/pasting it actually works: `npx rootsys connect` suggests
- * `npx rootsys serve`, a global install suggests `rootsys serve`, and a nightly build
+ * Render a `trellis <subcommand>` suggestion that matches how this process was
+ * launched, so copy/pasting it actually works: `npx @scope/pkg connect` suggests
+ * `npx @scope/pkg serve`, a global install suggests `trellis serve`, and a nightly build
  * keeps the `@nightly` tag.
  */
 export function formatCliCommand(input: {
@@ -59,7 +59,7 @@ export function formatCliCommand(input: {
 }): string {
   const runner = detectCliRunner(input.entryPath);
   if (runner === null) {
-    return `rootsys ${input.subcommand}`;
+    return `trellis ${input.subcommand}`;
   }
   return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
 }

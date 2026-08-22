@@ -1,5 +1,5 @@
 /**
- * DAG projector (rootsys): folds `dag.*` events into the in-memory read
+ * DAG projector (trellis): folds `dag.*` events into the in-memory read
  * model's `dags` slice using the shared contracts fold, and mirrors executor
  * bindings onto the thread (`OrchestrationThread.dagLink`).
  */

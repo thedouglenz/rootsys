@@ -803,7 +803,7 @@ export function projectEvent(
       );
 
     default: {
-      // rootsys: DAG events fold into the optional `dags` slice.
+      // trellis: DAG events fold into the optional `dags` slice.
       const dagProjected = projectDagEventIntoReadModel(nextBase, event);
       return Effect.succeed(dagProjected ?? nextBase);
     }

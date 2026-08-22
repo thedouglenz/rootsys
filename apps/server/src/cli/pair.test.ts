@@ -205,9 +205,9 @@ describe("t3 pair", () => {
       const rendered = String(
         typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
       );
-      assert.include(rendered, "No running rootsys server found.");
-      assert.include(rendered, "npx rootsys serve");
-      assert.include(rendered, "npx rootsys connect");
+      assert.include(rendered, "No running trellis server found.");
+      assert.include(rendered, "npx @thedouglenz/trellis serve");
+      assert.include(rendered, "npx @thedouglenz/trellis connect");
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
@@ -236,7 +236,7 @@ describe("t3 pair", () => {
         const rendered = String(
           typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
         );
-        assert.include(rendered, "No running rootsys server found.");
+        assert.include(rendered, "No running trellis server found.");
       }),
     ).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -262,7 +262,7 @@ describe("t3 pair", () => {
       const rendered = String(
         typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
       );
-      assert.include(rendered, "No running rootsys server found.");
+      assert.include(rendered, "No running trellis server found.");
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

@@ -1,10 +1,10 @@
 # Scripts
 
-> For maintainers. Using rootsys? See [docs/user](../user/).
+> For maintainers. Using trellis? See [docs/user](../user/).
 
 ## First checkout
 
-rootsys uses [Vite+](https://viteplus.dev/guide/). Install the global `vp` command, install
+trellis uses [Vite+](https://viteplus.dev/guide/). Install the global `vp` command, install
 dependencies, then start the dev stack:
 
 ```bash
@@ -45,7 +45,7 @@ authenticated.
   choose another isolated directory explicitly. Submodules are not worktrees and keep the normal
   precedence.
 - From the **main checkout**, dev commands implicitly use `~/.t3/dev`, keeping development state
-  separate from `~/.rootsys/userdata`. An explicit `--home-dir <path>` stores state under
+  separate from `~/.trellis/userdata`. An explicit `--home-dir <path>` stores state under
   `<path>/userdata`; the base directory remains available for caches, worktrees, and other shared
   data.
 

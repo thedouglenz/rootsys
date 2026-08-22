@@ -1,6 +1,6 @@
 # CI quality gates
 
-> For maintainers. Using rootsys? See [docs/user](../user/).
+> For maintainers. Using trellis? See [docs/user](../user/).
 
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs these quality gates on pull requests
 and pushes to `main`:

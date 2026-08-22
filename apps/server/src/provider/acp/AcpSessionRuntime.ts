@@ -244,7 +244,7 @@ export class AcpSessionRuntime extends Context.Service<
       payload: unknown,
     ) => Effect.Effect<void, EffectAcpErrors.AcpError>;
   }
->()("rootsys/provider/acp/AcpSessionRuntime") {}
+>()("@thedouglenz/trellis/provider/acp/AcpSessionRuntime") {}
 
 interface AcpStartedState extends AcpSessionRuntimeStartResult {}
 

@@ -284,7 +284,7 @@ export class Keybindings extends Context.Service<
       input: ServerRemoveKeybindingInput,
     ) => Effect.Effect<ResolvedKeybindingsConfig, KeybindingsConfigError>;
   }
->()("rootsys/keybindings") {}
+>()("@thedouglenz/trellis/keybindings") {}
 
 const make = Effect.gen(function* () {
   const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;

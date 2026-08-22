@@ -226,7 +226,7 @@ export const ChatHeader = memo(function ChatHeader({
     },
     [commitRename],
   );
-  // rootsys: threads that belong to a plan carry a chip after the title.
+  // trellis: threads that belong to a plan carry a chip after the title.
   const dagLink = useThreadShell(isServerThread ? activeThreadRef : null)?.dagLink ?? null;
   return (
     <div

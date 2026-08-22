@@ -38,4 +38,6 @@ export interface ProviderRuntimeIngestionShape {
 export class ProviderRuntimeIngestionService extends Context.Service<
   ProviderRuntimeIngestionService,
   ProviderRuntimeIngestionShape
->()("rootsys/orchestration/Services/ProviderRuntimeIngestion/ProviderRuntimeIngestionService") {}
+>()(
+  "@thedouglenz/trellis/orchestration/Services/ProviderRuntimeIngestion/ProviderRuntimeIngestionService",
+) {}

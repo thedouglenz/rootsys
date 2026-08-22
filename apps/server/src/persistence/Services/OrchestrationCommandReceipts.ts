@@ -70,5 +70,5 @@ export class OrchestrationCommandReceiptRepository extends Context.Service<
   OrchestrationCommandReceiptRepository,
   OrchestrationCommandReceiptRepositoryShape
 >()(
-  "rootsys/persistence/Services/OrchestrationCommandReceipts/OrchestrationCommandReceiptRepository",
+  "@thedouglenz/trellis/persistence/Services/OrchestrationCommandReceipts/OrchestrationCommandReceiptRepository",
 ) {}

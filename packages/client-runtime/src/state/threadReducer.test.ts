@@ -57,7 +57,7 @@ describe("applyThreadDetailEvent", () => {
         type: "project.created",
         payload: {
           projectId: ProjectId.make("project-1"),
-          title: "rootsys",
+          title: "trellis",
           workspaceRoot: "/repo",
           repositoryIdentity: null,
           defaultModelSelection: null,

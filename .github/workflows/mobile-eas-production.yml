@@ -24,7 +24,7 @@ name: Mobile EAS Production
 #      into the void.
 # workflow_dispatch remains as a manual override for both modes (e.g. to
 # retry an errored build or force an OTA).
-# Manual only in this fork: rootsys has no EAS project or app-store listings.
+# Manual only in this fork: trellis has no EAS project or app-store listings.
 # Restore the push trigger when the mobile app ships.
 on:
   workflow_dispatch:

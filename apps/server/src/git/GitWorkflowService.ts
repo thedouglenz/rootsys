@@ -96,7 +96,7 @@ export class GitWorkflowService extends Context.Service<
       readonly newBranch: string;
     }) => Effect.Effect<{ readonly branch: string }, GitManagerServiceError>;
   }
->()("rootsys/git/GitWorkflowService") {}
+>()("@thedouglenz/trellis/git/GitWorkflowService") {}
 
 function nonRepositoryLocalStatus(): VcsStatusLocalResult {
   return {

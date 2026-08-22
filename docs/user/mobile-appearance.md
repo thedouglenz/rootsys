@@ -1,6 +1,6 @@
 # Mobile appearance
 
-rootsys Mobile includes the rootsys, T3 Chat, Grove, Ocean, Ember, and Iris themes. Each theme has
+trellis Mobile includes the trellis, T3 Chat, Grove, Ocean, Ember, and Iris themes. Each theme has
 light and dark colors that apply throughout the app, including code reviews, file previews, the
 terminal, native headers, and sheets.
 

@@ -4211,7 +4211,7 @@ function ChatViewContent(props: ChatViewProps) {
   // partition (same shell, same capability gate, same PR auto-settle input)
   // so the banner and the sidebar row never disagree.
   const activeThreadShell = useThreadShell(isServerThread ? activeThreadRef : null);
-  // rootsys: a thread linked to a DAG gets its Plan surface opened once, the
+  // trellis: a thread linked to a DAG gets its Plan surface opened once, the
   // first time the link is seen for that thread. The store remembers the
   // auto-open per thread, so closing the surface (or picking another) sticks.
   const activeDagLink = activeThreadShell?.dagLink ?? null;
@@ -6273,7 +6273,7 @@ function ChatViewContent(props: ChatViewProps) {
     ) : activeRightPanelSurface?.kind === "pull-request" && !supportsPullRequests ? (
       <PullRequestsUnavailableState
         title="Pull requests unavailable"
-        error="Update this environment's rootsys server to browse pull requests."
+        error="Update this environment's trellis server to browse pull requests."
       />
     ) : activeRightPanelSurface?.kind === "pull-request" ? (
       // No onClose: the surface tab's own X owns closing here, and a second X in the header

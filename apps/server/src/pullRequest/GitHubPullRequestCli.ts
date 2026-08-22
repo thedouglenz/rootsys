@@ -562,7 +562,7 @@ export class GitHubPullRequestCli extends Context.Service<
       readonly body: string;
     }) => Effect.Effect<void, GitHubPullRequestCliError>;
   }
->()("rootsys/pullRequest/GitHubPullRequestCli") {}
+>()("@thedouglenz/trellis/pullRequest/GitHubPullRequestCli") {}
 
 /**
  * The GraphQL API takes owner and name as separate arguments, so `owner/repo` is split here.
@@ -662,8 +662,8 @@ function matchesFilters(
   viewer: string,
 ): boolean {
   if (filters === undefined) return true;
-  const labels = item.labels.map((label) => label.name.trim().toLowerCase());
-  const holds = (label: string) => labels.includes(label.trim().toLowerCase());
+  const labels = new Set(item.labels.map((label) => label.name.trim().toLowerCase()));
+  const holds = (label: string) => labels.has(label.trim().toLowerCase());
   return (
     (filters.draft === undefined || item.isDraft === (filters.draft === "only")) &&
     (filters.review === undefined ||

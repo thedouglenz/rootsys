@@ -32,7 +32,7 @@ export const hostFlag = Flag.string("host").pipe(
 );
 export const baseDirFlag = Flag.string("base-dir").pipe(
   Flag.withDescription(
-    "Explicit rootsys data directory; runtime state is stored under userdata (equivalent to T3CODE_HOME).",
+    "Explicit trellis data directory; runtime state is stored under userdata (equivalent to T3CODE_HOME).",
   ),
   Flag.optional,
 );

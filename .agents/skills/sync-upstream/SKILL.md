@@ -1,11 +1,11 @@
 ---
 name: sync-upstream
-description: Merge upstream T3 Code (pingdotgg/t3code) into this rootsys fork and resolve the conflicts, including measuring the incoming surface first, resolving the four UI files that habitually conflict, regenerating rather than merging derived files, renumbering incoming migrations into this fork's lineage, restoring the fork's identity where upstream reintroduces its own (Effect service keys, workspace filters, CI runner labels, workflow triggers, repo pointers), and verifying before committing. Use when pulling upstream changes, when asked to "sync with upstream", "merge upstream", or "catch up with T3 Code", when a merge breaks typecheck or CI, or when deciding whether a fork change is shaped to survive future merges.
+description: Merge upstream T3 Code (pingdotgg/t3code) into this trellis fork and resolve the conflicts, including measuring the incoming surface first, resolving the four UI files that habitually conflict, regenerating rather than merging derived files, renumbering incoming migrations into this fork's lineage, restoring the fork's identity where upstream reintroduces its own (Effect service keys, workspace filters, CI runner labels, workflow triggers, repo pointers), and verifying before committing. Use when pulling upstream changes, when asked to "sync with upstream", "merge upstream", or "catch up with T3 Code", when a merge breaks typecheck or CI, or when deciding whether a fork change is shaped to survive future merges.
 ---
 
-# Sync upstream into rootsys
+# Sync upstream into trellis
 
-rootsys is a fork of T3 Code (`upstream` = pingdotgg/t3code). Upstream moves fast and
+trellis is a fork of T3 Code (`upstream` = pingdotgg/t3code). Upstream moves fast and
 we carry a large additive feature (project DAGs). This skill is how a merge is done so
 it stays a 20-minute job instead of an afternoon.
 
@@ -14,14 +14,14 @@ UI files, so a rebase replays the same conflict once per commit. Merge, resolve 
 
 ## 1. Never merge into the served checkout
 
-`~/dev/rootsys` is usually running a dev server for the human. A conflicted merge there
+`~/dev/trellis` is usually running a dev server for the human. A conflicted merge there
 leaves them with a broken tree mid-session.
 
-Work in the linked worktree (`~/dev/rootsys-coherence`, or create one), on a throwaway
+Work in the linked worktree (`~/dev/trellis-coherence`, or create one), on a throwaway
 branch, then fast-forward `main` after it verifies:
 
 ```bash
-cd ~/dev/rootsys-coherence
+cd ~/dev/trellis-coherence
 git fetch upstream
 git checkout -b chore/upstream-sync   # from main
 git merge upstream/main
@@ -68,7 +68,7 @@ union member, a layer in a merge. Conflicts concentrate in the web UI:
 Two shapes of conflict, and they resolve differently:
 
 **Both sides added adjacent code** — keep both. Ours is usually a marked block
-(`// rootsys:`) or an extra prop; upstream's is unrelated. Concatenate, don't choose.
+(`// trellis:`) or an extra prop; upstream's is unrelated. Concatenate, don't choose.
 
 **Upstream refactored the seam we edited** — adopt their structure and re-apply our
 addition inside it. Do NOT preserve our version of the old structure; that is how a
@@ -84,14 +84,14 @@ fork rots. Worked examples from the 59-commit sync:
 When upstream introduces a registry where we had scattered edits, that is a _win_ —
 take it and delete our scatter.
 
-## 4b. Migrations: rootsys owns its own lineage
+## 4b. Migrations: trellis owns its own lineage
 
 We hold migration ids 41, 42, 43 (`ProjectionDags`, `ProjectionThreadsDagLink`,
 `McpCredentials`). Upstream's last is 40, so **the next migration upstream writes will
 collide with ours.**
 
 When an upstream migration arrives, do not keep its number. Renumber it to the next free
-id in our sequence (44, then 45, ...) and rename its file to match. rootsys databases are
+id in our sequence (44, then 45, ...) and rename its file to match. trellis databases are
 a separate lineage from upstream databases; only our numbering ever runs against them, so
 a divergent id is correct rather than a compromise.
 
@@ -110,19 +110,19 @@ recorded exactly as we list it.
 
 ## 4c. Identity: what upstream keeps re-introducing
 
-rootsys publishes under its own name, so every upstream merge drags back the old one.
+trellis publishes under its own name, so every upstream merge drags back the old one.
 None of this is optional — the first three break the build or the product.
 
 **Effect service keys.** `deterministicKeys` is `error` in `tsconfig.base.json` and derives
 each key from the package name, so every service in `apps/server` must be keyed
-`rootsys/<path>`. Any new service upstream adds arrives keyed `t3/<path>` and fails
+`trellis/<path>`. Any new service upstream adds arrives keyed `t3/<path>` and fails
 typecheck. `tsgo` prints the exact expected key for each one, so this is mechanical:
 
 ```bash
-pnpm exec vp run --filter rootsys typecheck 2>&1 | grep TS377049
+pnpm exec vp run --filter trellis typecheck 2>&1 | grep TS377049
 ```
 
-**Workspace filters.** The server package is `rootsys`, not `t3`. Upstream writes
+**Workspace filters.** The server package is `trellis`, not `t3`. Upstream writes
 `--filter=t3...` in workflows and `dependsOn: ["t3#build"]` in `apps/desktop/vite.config.ts`.
 A stale filter fails with `Package 't3' not found`.
 
@@ -140,22 +140,22 @@ Tagged releases go through `publish-cli.yml`. Merges that restore a `push:` or `
 trigger put a failing (or, for the nightly cron, three-hourly failing) job back.
 
 **The lint ledger.** `oxlint-plugin-t3code/rules/no-manual-effect-runtime-in-tests.ts` carries
-a per-file budget of legacy manual-runtime calls. rootsys records
-`ProviderCommandReactor.test.ts` at 71 where upstream says 70, because a rootsys test added
+a per-file budget of legacy manual-runtime calls. trellis records
+`ProviderCommandReactor.test.ts` at 71 where upstream says 70, because a trellis test added
 one in that file's own idiom. Merges will bring back upstream's number. Note that the rule
 counts every occurrence and reports whichever is past the budget **in source order**, so an
 inline `oxlint-disable` on "our" call does nothing — the error just moves to someone else's.
 Either genuinely reduce the file's count or record the real one.
 
 **One state directory.** Three places resolve where the app keeps state, and they must agree
-on `~/.rootsys`: `apps/server/src/os-jank.ts` (`resolveBaseDir`),
+on `~/.trellis`: `apps/server/src/os-jank.ts` (`resolveBaseDir`),
 `apps/desktop/src/app/DesktopStatePaths.ts`, and `DEFAULT_T3_HOME` in `scripts/dev-runner.ts`.
-Miss one and a dev server writes to `~/.t3/dev` while the desktop reads `~/.rootsys/dev`. The
+Miss one and a dev server writes to `~/.t3/dev` while the desktop reads `~/.trellis/dev`. The
 worktree-local `<worktree>/.t3` from `packages/shared/src/devHome.ts` is a different thing and
 stays as it is.
 
-**Repo pointers.** `apps/server/src/cli/triagePrompt.ts` must name `thedouglenz/rootsys`, or
-`rootsys triage` fetches upstream's playbook and files issues on their tracker.
+**Repo pointers.** `apps/server/src/cli/triagePrompt.ts` must name `thedouglenz/trellis`, or
+`trellis triage` fetches upstream's playbook and files issues on their tracker.
 `triagePrompt.test.ts` asserts the prompt is **byte-identical** to
 `.github/triage/PLAYBOOK.md`, so edit both together — old installs fetch the repo copy from
 `main` and follow it when it differs.
@@ -171,7 +171,7 @@ anything a user reads. Left alone, deliberately:
 | `t3.json`, its `t3.codes` schema URL              | the project files already in real repositories                                                              |
 | `mcp_servers.t3-code` config key                  | wire identity every provider adapter writes; only MCP `serverInfo.name` was renamed                         |
 | `legacyUserDataDirName`                           | names a directory that only ever existed as `T3 Code (Alpha)`; renaming breaks the legacy-install migration |
-| `~/.t3/ssh-launch`, `~/.t3/dev`, `<worktree>/.t3` | not the server base dir; only `~/.t3/userdata` moved to `~/.rootsys/userdata`                               |
+| `~/.t3/ssh-launch`, `~/.t3/dev`, `<worktree>/.t3` | not the server base dir; only `~/.t3/userdata` moved to `~/.trellis/userdata`                               |
 | "T3 Connect"                                      | upstream's service, which we do not run                                                                     |
 | `apps/desktop/src`, `apps/mobile/src`             | not shipped yet; rename by hand when they ship                                                              |
 | `"T3 Code Mobile"` in tests                       | those model the unrenamed mobile client                                                                     |
@@ -201,7 +201,7 @@ noise. Any `TS377049` / `TS377030` / `TS377026` you see is real.
 **Before tagging a release, run the full server suite once anyway:**
 
 ```bash
-pnpm exec vp run --filter rootsys test
+pnpm exec vp run --filter trellis test
 ```
 
 Picking test files by grepping for the strings you changed is not good enough, and has
@@ -214,7 +214,7 @@ of a string (`client_label=T3+Code+Mobile`). The full run takes about three minu
 
 ```bash
 git commit                # message: what conflicted and WHY each side was chosen
-cd ~/dev/rootsys && git merge --ff-only chore/upstream-sync
+cd ~/dev/trellis && git merge --ff-only chore/upstream-sync
 ```
 
 If the merge touched `apps/server`, the running dev server needs a restart to pick it
@@ -247,21 +247,21 @@ Order matters: kill the supervisor first, then reap survivors by verified port
 ownership, then start.
 
 ```bash
-pid=$(cat /tmp/rootsys-dev.pid); pgid=$(ps -o pgid= -p $pid | tr -d ' ')
+pid=$(cat /tmp/trellis-dev.pid); pgid=$(ps -o pgid= -p $pid | tr -d ' ')
 kill -- -$pgid; sleep 4
 for r in 1 2; do
   for port in 13773 13774 5733 5734; do
     for p in $(lsof -tiTCP:$port -sTCP:LISTEN 2>/dev/null); do
       cwd=$(lsof -p $p 2>/dev/null | awk '$4=="cwd"{print $NF}')
-      case "$cwd" in /Users/doug/dev/rootsys*) kill $p;; esac   # only ours
+      case "$cwd" in /Users/doug/dev/trellis*) kill $p;; esac   # only ours
     done
   done
   sleep 3
 done
-(pnpm exec vp run dev --home-dir <repo>/.t3 > /tmp/rootsys-dev.log 2>&1 &
- echo $! > /tmp/rootsys-dev.pid)
-until grep -q "pairingUrl:" /tmp/rootsys-dev.log; do sleep 2; done
-grep -E "dev-runner\]|pairingUrl:" /tmp/rootsys-dev.log | head -2
+(pnpm exec vp run dev --home-dir <repo>/.t3 > /tmp/trellis-dev.log 2>&1 &
+ echo $! > /tmp/trellis-dev.pid)
+until grep -q "pairingUrl:" /tmp/trellis-dev.log; do sleep 2; done
+grep -E "dev-runner\]|pairingUrl:" /tmp/trellis-dev.log | head -2
 ```
 
 Confirm exactly one listener on 13773/5733 afterwards, and hand the human the **full
@@ -271,12 +271,12 @@ pairing URL including its token** — the old token dies with the old server.
 
 Judge a fork change by how it will merge, not just whether it works:
 
-- New behavior goes in **new files** under a rootsys-owned directory.
+- New behavior goes in **new files** under a trellis-owned directory.
 - Upstream files are touched only at **list-shaped seams** — a case, a union member, a
   registry entry, an array element. Those merge; interleaved edits inside a function body
   do not.
 - Prefer **one entry in a registry** over N scattered hunks. If upstream has no registry
   and we need one, consider contributing it upstream rather than forking around it.
-- Mark our insertions with a `// rootsys:` comment so a future resolver can tell at a
+- Mark our insertions with a `// trellis:` comment so a future resolver can tell at a
   glance which side is ours.
 - **Merge weekly.** Four conflicted files after 59 commits is cheap; after 500 it is not.

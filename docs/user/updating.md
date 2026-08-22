@@ -1,7 +1,7 @@
-# Keeping rootsys in Sync
+# Keeping trellis in Sync
 
-The rootsys web or desktop app and the server it connects to work best when they use the same
-version. If they do not match, rootsys shows a warning with the right update option for that server.
+The trellis web or desktop app and the server it connects to work best when they use the same
+version. If they do not match, trellis shows a warning with the right update option for that server.
 
 ## Where to Find the Update
 
@@ -24,15 +24,15 @@ The update does not remove saved threads, settings, or project files.
 
 | Action                     | What to do                                                                                                                                                                  |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Update server**          | Available for the rootsys Linux background service. Select the button and leave rootsys open while it prepares, tests, restarts, and reconnects.                            |
-| **Update the desktop app** | Open the rootsys desktop app on the machine that runs the server and install the app update there. Reopen it if needed.                                                     |
-| **Copy update command**    | Copy the command, open a terminal on the server machine, stop the current rootsys server, and relaunch it with the copied command and any startup options you normally use. |
+| **Update server**          | Available for the trellis Linux background service. Select the button and leave trellis open while it prepares, tests, restarts, and reconnects.                            |
+| **Update the desktop app** | Open the trellis desktop app on the machine that runs the server and install the app update there. Reopen it if needed.                                                     |
+| **Copy update command**    | Copy the command, open a terminal on the server machine, stop the current trellis server, and relaunch it with the copied command and any startup options you normally use. |
 
-The available action depends on how that server was started. rootsys does not update connected
+The available action depends on how that server was started. trellis does not update connected
 servers silently in the background.
 
 An older background-service launcher may ask you to run the exact
-`rootsys@<version> service update` command on the server machine. That one local update installs the
+`trellis@<version> service update` command on the server machine. That one local update installs the
 rollback support needed for later remote updates, including versions that change the database.
 
 After selecting **Update**, the notice becomes a live status line: **Downloading…** while the new
@@ -40,21 +40,21 @@ version is fetched and verified, then **Restarting…** while the server restart
 status appears in the conversation and in Connections, so navigating between them does not lose the
 update. A failure remains visible with its error and an option to retry.
 
-**Copy update command** gives you `rootsys@<client-version>`, which relaunches the server directly
+**Copy update command** gives you `trellis@<client-version>`, which relaunches the server directly
 at the matching version. Add whatever startup options you normally use.
 
-If the server instead runs as the rootsys background service, update the service on the host and
+If the server instead runs as the trellis background service, update the service on the host and
 pin the same version:
 
 ```sh
-rootsys@<client-version> service update
+trellis@<client-version> service update
 ```
 
-`service update` installs the version of the CLI that invoked it, so `rootsys service update`
+`service update` installs the version of the CLI that invoked it, so `trellis service update`
 only resolves the skew when your client happens to be on the latest release. The exact version from
 the warning always works.
 
-See [Running rootsys in the Background](./background-service.md) for install, status, and removal
+See [Running trellis in the Background](./background-service.md) for install, status, and removal
 commands.
 
 ## After the Update
@@ -67,7 +67,7 @@ If a step fails:
 
 1. Retry the offered action once.
 2. Make sure you updated the machine named in the warning, not only the device you are using.
-3. For a command-line server, relaunch it with `rootsys@<client-version>`, replacing
+3. For a command-line server, relaunch it with `trellis@<client-version>`, replacing
    `<client-version>` with the client version shown in the warning.
 
 ## The Mobile App

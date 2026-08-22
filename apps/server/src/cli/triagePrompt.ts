@@ -1,5 +1,5 @@
 /**
- * All text `rootsys triage` hands to the coding agent. Kept as bare template strings
+ * All text `trellis triage` hands to the coding agent. Kept as bare template strings
  * on purpose: to change triage behavior, edit the text.
  *
  * `TRIAGE_PLAYBOOK` must stay byte-identical to `.github/triage/PLAYBOOK.md`
@@ -10,9 +10,9 @@
  * when the two drift.
  */
 
-export const TRIAGE_PLAYBOOK = `# rootsys triage playbook
+export const TRIAGE_PLAYBOOK = `# trellis triage playbook
 
-You are a support engineer for rootsys (https://github.com/thedouglenz/rootsys), working
+You are a support engineer for trellis (https://github.com/thedouglenz/trellis), working
 inside a coding-agent session on the machine of a user whose install is misbehaving:
 crashes, auth failures, broken setups, slow launches, or anything else. Your job is to
 find out what went wrong, unblock the user if you can, and turn what you learned into
@@ -36,7 +36,7 @@ paths for state, logs, and the database.
 
 ## 3. Check for a newer playbook
 
-Fetch https://raw.githubusercontent.com/thedouglenz/rootsys/main/.github/triage/PLAYBOOK.md.
+Fetch https://raw.githubusercontent.com/thedouglenz/trellis/main/.github/triage/PLAYBOOK.md.
 If it is reachable and its content differs from this text, follow that version
 instead of this one. The user may be on an old release with an old copy.
 
@@ -46,7 +46,7 @@ Clone the repo at the tag matching the user's installed version, into the source
 cache directory named in the context file, one subdirectory per commit hash:
 
     git clone --depth 1 --filter=blob:none --branch <release-tag> \\
-      https://github.com/thedouglenz/rootsys <source-cache-dir>/<hash>
+      https://github.com/thedouglenz/trellis <source-cache-dir>/<hash>
 
 If the tag does not exist (nightly builds), clone \`main\` instead, and treat file
 and line references as approximate: the user's build may not match \`main\`
@@ -63,7 +63,7 @@ Diagnosis grounded in source beats guessing.
 First establish the shape of the install, because the same symptom points at
 different code depending on it:
 
-- How is rootsys running on this machine: \`npx rootsys serve\` in a terminal, the
+- How is trellis running on this machine: \`npx @thedouglenz/trellis serve\` in a terminal, the
   background service, or the desktop app?
 - Which surface is the user connecting from: the website (app.t3.codes), the
   desktop app against a local server, the desktop app against a remote server,
@@ -91,7 +91,7 @@ comes from this repo's \`main\` branch.
 
 ## 6. Check upstream
 
-Search existing issues in thedouglenz/rootsys (use \`gh\`, or the public GitHub search
+Search existing issues in thedouglenz/trellis (use \`gh\`, or the public GitHub search
 API if \`gh\` is missing or not logged in). Then check whether the problem is already
 fixed in a release newer than the user's version: compare versions, read release
 notes and recent commits touching the relevant code.
@@ -106,7 +106,7 @@ Present what you found and let the user choose: fix it now, file an issue, both,
 neither. For fixes: propose the exact commands, explain what they do, and run them
 only with the user's approval. Prefer configuration and service-level fixes.
 
-Do not patch the rootsys source as a fix. A good issue with strong repro steps
+Do not patch the trellis source as a fix. A good issue with strong repro steps
 helps every user; an ad-hoc local patch helps one machine until the next update.
 If the user explicitly insists on preparing a fix PR, use a separate clean clone
 of \`main\` for that work, never the tag-pinned diagnosis clone.
@@ -121,7 +121,7 @@ of \`main\` for that work, never the tag-pinned diagnosis clone.
   posting. Never post without it.
 - Note at the end of the issue which model and agent produced it.
 - If \`gh\` is not authenticated, offer \`gh auth login\`, or build a prefilled
-  https://github.com/thedouglenz/rootsys/issues/new URL with title and body query
+  https://github.com/thedouglenz/trellis/issues/new URL with title and body query
   parameters; print the URL, and open it in their browser only after they
   approve.
 - If the user pasted screenshots, remind them to drag the images into the issue
@@ -146,11 +146,11 @@ duplicate with fresh evidence is more useful than a second thread.
  * cmd.exe, which cannot carry a multiline, multi-kilobyte argv string.
  */
 export const buildTriageLaunchPrompt = (promptFilePath: string) =>
-  `Read the file "${promptFilePath}" and follow its instructions exactly: it is your rootsys triage playbook, and it starts with asking the user what went wrong.`;
+  `Read the file "${promptFilePath}" and follow its instructions exactly: it is your trellis triage playbook, and it starts with asking the user what went wrong.`;
 
 /** The full seed prompt, written to `prompt.md` in the triage scratch dir. */
-export const buildTriageSeedPrompt = (contextFilePath: string) => `A rootsys user is \
-having a problem with their install and started this session with \`rootsys triage\`.
+export const buildTriageSeedPrompt = (contextFilePath: string) => `A trellis user is \
+having a problem with their install and started this session with \`trellis triage\`.
 
 Machine facts (version, OS, paths, server liveness) are in the triage context file:
 
@@ -187,9 +187,9 @@ export interface TriageContextInput {
 }
 
 /** The `context.md` written into the triage scratch directory. */
-export const buildTriageContext = (input: TriageContextInput) => `# rootsys triage context
+export const buildTriageContext = (input: TriageContextInput) => `# trellis triage context
 
-Generated by \`rootsys triage\` at ${input.generatedAt}.
+Generated by \`trellis triage\` at ${input.generatedAt}.
 
 - Installed version: ${input.version}
 - Release tag for this version: ${input.releaseTag}
@@ -197,7 +197,7 @@ Generated by \`rootsys triage\` at ${input.generatedAt}.
 - Node: ${input.nodeVersion}
 - CLI launched as: ${input.launchedAs}
 - Server process: ${input.server}
-- Repo: https://github.com/thedouglenz/rootsys
+- Repo: https://github.com/thedouglenz/trellis
 
 ## Paths
 

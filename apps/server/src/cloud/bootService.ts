@@ -62,7 +62,7 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
   // The user manager has no reliable network-online target; server networking retries itself.
   return [
     "[Unit]",
-    "Description=rootsys server",
+    "Description=trellis server",
     "StartLimitIntervalSec=300",
     "StartLimitBurst=5",
     "",
@@ -390,7 +390,7 @@ export class BootServiceInstallError extends Schema.TaggedErrorClass<BootService
   { cause: Schema.Defect() },
 ) {
   override get message(): string {
-    return "Could not set up the rootsys background service.";
+    return "Could not set up the trellis background service.";
   }
 }
 
@@ -424,7 +424,7 @@ export class BootService extends Context.Service<
     readonly uninstall: Effect.Effect<boolean, BootServiceError>;
     readonly status: Effect.Effect<BootServiceStatus, BootServiceError>;
   }
->()("rootsys/cloud/bootService") {}
+>()("@thedouglenz/trellis/cloud/bootService") {}
 
 export interface BootServiceHost {
   readonly execPath: string;

@@ -45,12 +45,12 @@ it("preserves an explicitly configured HOME", () => {
 });
 
 it.layer(NodeServices.layer)("base directory resolution", (it) => {
-  // rootsys must never default into `~/.t3`: upstream T3 Code owns that
+  // trellis must never default into `~/.t3`: upstream T3 Code owns that
   // directory, and the two carry divergent migration ledgers, so a shared
   // state.sqlite would leave one of them unable to migrate.
-  it.effect("defaults to ~/.rootsys", () =>
+  it.effect("defaults to ~/.trellis", () =>
     Effect.gen(function* () {
-      const expected = NodePath.join(NodeOS.homedir(), ".rootsys");
+      const expected = NodePath.join(NodeOS.homedir(), ".trellis");
 
       assert.equal(yield* resolveBaseDir(undefined), expected);
       assert.equal(yield* resolveBaseDir(""), expected);

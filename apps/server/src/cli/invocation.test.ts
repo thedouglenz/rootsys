@@ -4,7 +4,7 @@ import { detectCliRunner, formatCliCommand, suggestedPackageSpec } from "./invoc
 
 it("detects package runners from their cache entry paths", () => {
   assert.equal(
-    detectCliRunner("/home/theo/.npm/_npx/abc123/node_modules/rootsys/dist/bin.mjs"),
+    detectCliRunner("/home/theo/.npm/_npx/abc123/node_modules/@thedouglenz/trellis/dist/bin.mjs"),
     "npx",
   );
   assert.equal(
@@ -14,11 +14,15 @@ it("detects package runners from their cache entry paths", () => {
     "npx",
   );
   assert.equal(
-    detectCliRunner("/home/theo/.cache/pnpm/dlx/abc/node_modules/rootsys/dist/bin.mjs"),
+    detectCliRunner(
+      "/home/theo/.cache/pnpm/dlx/abc/node_modules/@thedouglenz/trellis/dist/bin.mjs",
+    ),
     "pnpm dlx",
   );
   assert.equal(
-    detectCliRunner("/home/theo/.local/share/pnpm/.pnpm/dlx/abc/node_modules/rootsys/dist/bin.mjs"),
+    detectCliRunner(
+      "/home/theo/.local/share/pnpm/.pnpm/dlx/abc/node_modules/@thedouglenz/trellis/dist/bin.mjs",
+    ),
     "pnpm dlx",
   );
   assert.equal(
@@ -29,7 +33,7 @@ it("detects package runners from their cache entry paths", () => {
   );
   assert.equal(detectCliRunner("/home/theo/.bun/install/cache/t3@0.0.31/dist/bin.mjs"), "bunx");
   assert.equal(
-    detectCliRunner("/tmp/bunx-1000-rootsys@latest/node_modules/rootsys/dist/bin.mjs"),
+    detectCliRunner("/tmp/bunx-1000-trellis@latest/node_modules/@thedouglenz/trellis/dist/bin.mjs"),
     "bunx",
   );
   assert.equal(
@@ -41,40 +45,42 @@ it("detects package runners from their cache entry paths", () => {
 });
 
 it("treats stable installs as direct invocations", () => {
-  assert.isNull(detectCliRunner("/usr/local/lib/node_modules/rootsys/dist/bin.mjs"));
+  assert.isNull(detectCliRunner("/usr/local/lib/node_modules/@thedouglenz/trellis/dist/bin.mjs"));
   assert.isNull(detectCliRunner("/home/theo/Code/work/t3code/apps/server/dist/bin.mjs"));
-  assert.isNull(detectCliRunner("/home/theo/.t3/runtime/0.0.31/node_modules/rootsys/dist/bin.mjs"));
+  assert.isNull(
+    detectCliRunner("/home/theo/.t3/runtime/0.0.31/node_modules/@thedouglenz/trellis/dist/bin.mjs"),
+  );
   assert.isNull(detectCliRunner(""));
 });
 
 it("re-suggests the nightly channel only for nightly builds", () => {
-  assert.equal(suggestedPackageSpec("0.0.31-nightly.20260729"), "rootsys@nightly");
-  assert.equal(suggestedPackageSpec("0.0.31"), "rootsys");
+  assert.equal(suggestedPackageSpec("0.0.31-nightly.20260729"), "@thedouglenz/trellis@nightly");
+  assert.equal(suggestedPackageSpec("0.0.31"), "@thedouglenz/trellis");
 });
 
 it("formats serve suggestions to match the launching command", () => {
   assert.equal(
     formatCliCommand({
       subcommand: "serve",
-      entryPath: "/home/theo/.npm/_npx/abc/node_modules/rootsys/dist/bin.mjs",
+      entryPath: "/home/theo/.npm/_npx/abc/node_modules/@thedouglenz/trellis/dist/bin.mjs",
       version: "0.0.31-nightly.20260729",
     }),
-    "npx rootsys@nightly serve",
+    "npx @thedouglenz/trellis@nightly serve",
   );
   assert.equal(
     formatCliCommand({
       subcommand: "serve",
-      entryPath: "/tmp/bunx-1000-rootsys@latest/node_modules/rootsys/dist/bin.mjs",
+      entryPath: "/tmp/bunx-1000-trellis@latest/node_modules/@thedouglenz/trellis/dist/bin.mjs",
       version: "0.0.31",
     }),
-    "bunx rootsys serve",
+    "bunx @thedouglenz/trellis serve",
   );
   assert.equal(
     formatCliCommand({
       subcommand: "serve",
-      entryPath: "/usr/local/lib/node_modules/rootsys/dist/bin.mjs",
+      entryPath: "/usr/local/lib/node_modules/@thedouglenz/trellis/dist/bin.mjs",
       version: "0.0.31-nightly.20260729",
     }),
-    "rootsys serve",
+    "trellis serve",
   );
 });

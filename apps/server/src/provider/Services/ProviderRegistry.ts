@@ -77,5 +77,5 @@ export interface ProviderRegistryShape {
 }
 
 export class ProviderRegistry extends Context.Service<ProviderRegistry, ProviderRegistryShape>()(
-  "rootsys/provider/Services/ProviderRegistry",
+  "@thedouglenz/trellis/provider/Services/ProviderRegistry",
 ) {}

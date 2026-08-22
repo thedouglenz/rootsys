@@ -68,7 +68,7 @@ export interface McpSessionRegistryShape {
 export class McpSessionRegistry extends Context.Service<
   McpSessionRegistry,
   McpSessionRegistryShape
->()("rootsys/mcp/McpSessionRegistry") {}
+>()("@thedouglenz/trellis/mcp/McpSessionRegistry") {}
 
 interface CredentialRecord {
   readonly tokenHash: string;
@@ -253,7 +253,7 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
         threadId: ThreadId.make(request.threadId),
         providerSessionId,
         providerInstanceId: ProviderInstanceId.make(request.providerInstanceId),
-        // rootsys: DAG tools are always available; preview is opt-in via
+        // trellis: DAG tools are always available; preview is opt-in via
         // the caller (server setting `enableAgentBrowserAccess`).
         capabilities: new Set<McpInvocationContext.McpCapability>([
           "dag",

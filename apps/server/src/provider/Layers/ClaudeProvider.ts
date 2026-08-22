@@ -835,7 +835,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Claude is disabled in rootsys settings.",
+        message: "Claude is disabled in trellis settings.",
       },
     });
   }
@@ -998,7 +998,7 @@ export const makePendingClaudeProvider = (
           version: null,
           status: "warning",
           auth: { status: "unknown" },
-          message: "Claude is disabled in rootsys settings.",
+          message: "Claude is disabled in trellis settings.",
         },
       });
     }

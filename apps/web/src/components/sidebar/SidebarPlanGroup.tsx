@@ -1,5 +1,5 @@
 /**
- * Sidebar pieces for plan-linked threads (rootsys): the per-row glyph and the
+ * Sidebar pieces for plan-linked threads (trellis): the per-row glyph and the
  * collapsible "Plan: <title>" group header. Both read the live DAG graph
  * through the shared per-plan subscription.
  */

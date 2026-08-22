@@ -37,7 +37,7 @@ const connectUnavailableCommand = Command.make("connect", {
   Command.withHandler(() =>
     Effect.fail(
       new CliError.ShowHelp({
-        commandPath: ["rootsys", "connect"],
+        commandPath: ["trellis", "connect"],
         errors: [new ConnectPublicConfigMissingError({ cause: connectPublicConfigMissingMessage })],
       }),
     ),
@@ -45,8 +45,8 @@ const connectUnavailableCommand = Command.make("connect", {
 );
 
 export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
-  Command.make("rootsys", { ...sharedServerCommandFlags }).pipe(
-    Command.withDescription("Run the rootsys server."),
+  Command.make("trellis", { ...sharedServerCommandFlags }).pipe(
+    Command.withDescription("Run the trellis server."),
     Command.withHandler((flags) => runServerCommand(flags)),
     Command.withSubcommands([
       startCommand,

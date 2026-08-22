@@ -68,7 +68,7 @@ export function isProxiableBindHost(host: string): boolean {
 }
 
 export const DEFAULT_T3_HOME = Effect.map(Effect.service(Path.Path), (path) =>
-  path.join(NodeOS.homedir(), ".rootsys"),
+  path.join(NodeOS.homedir(), ".trellis"),
 );
 
 const MODE_ARGS = {
@@ -76,11 +76,11 @@ const MODE_ARGS = {
     "run",
     "--filter=@t3tools/contracts",
     "--filter=@t3tools/web",
-    "--filter=rootsys",
+    "--filter=@thedouglenz/trellis",
     "--parallel",
     "dev",
   ],
-  "dev:server": ["run", "--filter=rootsys", "dev"],
+  "dev:server": ["run", "--filter=@thedouglenz/trellis", "dev"],
   "dev:web": ["run", "--filter=@t3tools/web", "dev"],
   "dev:desktop": ["run", "--filter=@t3tools/desktop", "--filter=@t3tools/web", "dev"],
 } as const satisfies Record<string, ReadonlyArray<string>>;

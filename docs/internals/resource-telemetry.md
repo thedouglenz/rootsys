@@ -1,6 +1,6 @@
 # Resource telemetry architecture
 
-> For maintainers. Using rootsys? See [docs/user](../user/).
+> For maintainers. Using trellis? See [docs/user](../user/).
 
 Status: implemented
 

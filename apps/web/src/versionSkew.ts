@@ -39,7 +39,7 @@ export function resolveVersionMismatch(
   return {
     clientVersion: normalizedClientVersion,
     serverVersion: normalizedServerVersion,
-    hint: "Version mismatch. Try syncing the client and server to the same rootsys version.",
+    hint: "Version mismatch. Try syncing the client and server to the same trellis version.",
   };
 }
 
@@ -59,7 +59,7 @@ export function resolveServerSelfUpdateCapability(
 
 /** The command to hand users whose server cannot update itself. */
 export function manualServerUpdateCommand(targetVersion: string): string {
-  return `npx rootsys@${targetVersion}`;
+  return `npx @thedouglenz/trellis@${targetVersion}`;
 }
 
 /** One sentence telling the user how to resolve version skew for a server,

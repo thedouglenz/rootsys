@@ -1,10 +1,10 @@
 /**
- * DAG command decider (rootsys). Pure: command + read model → planned events.
+ * DAG command decider (trellis). Pure: command + read model → planned events.
  *
  * Called from `decideOrchestrationCommand` for every `dag.*` command so DAG
  * events ride the same serialized dispatch, event store, and receipts as
  * projects and threads. Kept in its own module to stay rebase-friendly
- * against upstream rootsys.
+ * against upstream trellis.
  *
  * Invariant policy: structural commands (node/edge upserts) validate shape
  * and acyclicity. Status commands are permissive about transitions — the

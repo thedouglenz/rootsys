@@ -91,5 +91,5 @@ export class ProjectionPendingApprovalRepository extends Context.Service<
   ProjectionPendingApprovalRepository,
   ProjectionPendingApprovalRepositoryShape
 >()(
-  "rootsys/persistence/Services/ProjectionPendingApprovals/ProjectionPendingApprovalRepository",
+  "@thedouglenz/trellis/persistence/Services/ProjectionPendingApprovals/ProjectionPendingApprovalRepository",
 ) {}

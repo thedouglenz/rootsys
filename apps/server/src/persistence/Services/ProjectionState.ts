@@ -63,4 +63,4 @@ export interface ProjectionStateRepositoryShape {
 export class ProjectionStateRepository extends Context.Service<
   ProjectionStateRepository,
   ProjectionStateRepositoryShape
->()("rootsys/persistence/Services/ProjectionState/ProjectionStateRepository") {}
+>()("@thedouglenz/trellis/persistence/Services/ProjectionState/ProjectionStateRepository") {}

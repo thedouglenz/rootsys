@@ -1,5 +1,5 @@
 /**
- * Pure grouping of sidebar thread rows by the plan they belong to (rootsys).
+ * Pure grouping of sidebar thread rows by the plan they belong to (trellis).
  * Input is an already-sorted row list; output keeps that order and folds
  * threads sharing a `dagLink.dagId` into one group placed where the first
  * (most recent) member sat. Single linked threads stay plain rows: a header

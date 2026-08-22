@@ -3,8 +3,8 @@
  *
  * Each environment scans the provider CLIs' own on-disk session transcripts
  * (`~/.claude/projects/**\/*.jsonl`, `~/.codex/sessions/**\/*.jsonl`) rather than
- * relying on rootsys's own orchestration projections, so usage stays complete
- * even for turns that were never driven through rootsys. This mirrors the
+ * relying on trellis's own orchestration projections, so usage stays complete
+ * even for turns that were never driven through trellis. This mirrors the
  * approach `ccusage` takes.
  *
  * Environments return pre-aggregated `(day, hourStart?, provider, model)`

@@ -115,7 +115,7 @@ export class WorkspacePaths extends Context.Service<
       WorkspacePathOutsideRootError
     >;
   }
->()("rootsys/workspace/WorkspacePaths") {}
+>()("@thedouglenz/trellis/workspace/WorkspacePaths") {}
 
 function toPosixRelativePath(input: string): string {
   return input.replaceAll("\\", "/");

@@ -15,7 +15,7 @@ export class VcsProvisioningService extends Context.Service<
   {
     readonly initRepository: (input: VcsInitInput) => Effect.Effect<void, VcsError>;
   }
->()("rootsys/vcs/VcsProvisioningService") {}
+>()("@thedouglenz/trellis/vcs/VcsProvisioningService") {}
 
 function resolveRequestedKind(
   kind: VcsDriverKind | undefined,

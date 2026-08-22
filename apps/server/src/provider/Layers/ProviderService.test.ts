@@ -1960,7 +1960,7 @@ validation.layer("ProviderServiceLive validation", (it) => {
 });
 
 describe("agent browser access", () => {
-  // rootsys: an MCP credential is always issued (the `dag` toolkit is
+  // trellis: an MCP credential is always issued (the `dag` toolkit is
   // always-on); the browser setting only decides whether the "preview"
   // capability is requested. Because `issueActiveMcpCredential` revokes the
   // thread's previous token before minting, a setting flip on restart can

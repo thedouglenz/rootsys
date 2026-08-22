@@ -122,7 +122,7 @@ export class WorkspaceSearchIndex extends Context.Service<
       WorkspaceSearchIndexRefreshFailed | WorkspaceSearchIndexScanTimedOut
     >;
   }
->()("rootsys/workspace/WorkspaceSearchIndex") {}
+>()("@thedouglenz/trellis/workspace/WorkspaceSearchIndex") {}
 
 function toPosixPath(input: string): string {
   return input.replaceAll("\\", "/");

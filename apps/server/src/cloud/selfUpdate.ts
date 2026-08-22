@@ -43,7 +43,7 @@ export class ServerSelfUpdate extends Context.Service<
       reportProgress?: (stage: ServerSelfUpdateProgressStage) => Effect.Effect<void>,
     ) => Effect.Effect<ServerSelfUpdateResult, ServerSelfUpdateError>;
   }
->()("rootsys/cloud/selfUpdate/ServerSelfUpdate") {}
+>()("@thedouglenz/trellis/cloud/selfUpdate/ServerSelfUpdate") {}
 
 export const make = Effect.fn("cloud.server_self_update.make")(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
@@ -66,18 +66,18 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
   )(function* (input, reportProgress = () => Effect.void) {
     if (capability === "desktop-managed") {
       return yield* failWith(
-        "This server is managed by the rootsys desktop app on its machine; update the desktop app to update it.",
+        "This server is managed by the trellis desktop app on its machine; update the desktop app to update it.",
       );
     }
     if (capability === null) {
       return yield* failWith(
-        "Remote updates require the rootsys background service. Run `rootsys service install` on the server machine.",
+        "Remote updates require the trellis background service. Run `trellis service install` on the server machine.",
       );
     }
 
     const targetVersion = input.targetVersion.trim();
     if (!isExactServiceVersion(targetVersion)) {
-      return yield* failWith(`'${targetVersion}' is not an exact rootsys version.`);
+      return yield* failWith(`'${targetVersion}' is not an exact trellis version.`);
     }
     if (yield* Ref.getAndSet(inFlight, true)) {
       return yield* failWith("A server update is already in progress.");
@@ -164,7 +164,7 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
         Effect.mapError((error) =>
           error._tag === "PinnedRuntimePreflightBlockedError"
             ? failWith(error.reason, error)
-            : failWith(`Could not prepare rootsys@${targetVersion}.`, error),
+            : failWith(`Could not prepare trellis@${targetVersion}.`, error),
         ),
       );
 

@@ -6,7 +6,7 @@ export type ThemePreviewColors = Readonly<{
   messageAction: string;
 }>;
 
-/** The standard rootsys artwork is not a built-in theme, so its preview colors live here. */
+/** The standard trellis artwork is not a built-in theme, so its preview colors live here. */
 export const STANDARD_THEME_PREVIEW_COLORS: Readonly<Record<ThemeAppearance, ThemePreviewColors>> =
   {
     light: {

@@ -1,6 +1,6 @@
 # Relay observability
 
-> For maintainers. Using rootsys? See [docs/user](../user/).
+> For maintainers. Using trellis? See [docs/user](../user/).
 
 The relay Alchemy stack owns a shared Axiom trace setup:
 

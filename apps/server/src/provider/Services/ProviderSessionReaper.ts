@@ -12,4 +12,4 @@ export interface ProviderSessionReaperShape {
 export class ProviderSessionReaper extends Context.Service<
   ProviderSessionReaper,
   ProviderSessionReaperShape
->()("rootsys/provider/Services/ProviderSessionReaper") {}
+>()("@thedouglenz/trellis/provider/Services/ProviderSessionReaper") {}

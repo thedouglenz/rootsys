@@ -639,7 +639,7 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           });
           return;
 
-        // rootsys: a node binding names its executor thread; mirror it onto
+        // trellis: a node binding names its executor thread; mirror it onto
         // the thread row so shells carry the link without a reverse lookup.
         case "dag.node-status-set": {
           const threadId = event.payload.threadId;

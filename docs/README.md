@@ -1,6 +1,6 @@
-# rootsys docs
+# trellis docs
 
-## Using rootsys
+## Using trellis
 
 - [Install and first run](./user/install.md)
 - [Permission modes](./user/permission-modes.md)
@@ -20,7 +20,7 @@ Mobile app: [apps/mobile/README.md](../apps/mobile/README.md)
 
 ---
 
-## Working on rootsys
+## Working on trellis
 
 Everything below is for maintainers. Setup lives in the [root README](../README.md);
 policy in [CONTRIBUTING.md](../CONTRIBUTING.md); agent rules in [AGENTS.md](../AGENTS.md).

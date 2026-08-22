@@ -52,7 +52,7 @@ const withProject = (readModel: OrchestrationReadModel) =>
     commandId: cmd(),
     projectId,
     title: "Project",
-    workspaceRoot: "/tmp/rootsys-dag-test",
+    workspaceRoot: "/tmp/trellis-dag-test",
     createdAt: NOW,
   }).pipe(Effect.map((r) => r.readModel));
 

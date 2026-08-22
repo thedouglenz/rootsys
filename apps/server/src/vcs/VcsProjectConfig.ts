@@ -48,7 +48,7 @@ export class VcsProjectConfig extends Context.Service<
       input: VcsProjectConfigResolveInput,
     ) => Effect.Effect<VcsDriverKindType | "auto">;
   }
->()("rootsys/vcs/VcsProjectConfig") {}
+>()("@thedouglenz/trellis/vcs/VcsProjectConfig") {}
 
 function configuredKind(config: ProjectVcsConfigFile): VcsDriverKindType | "auto" {
   return config.vcs?.kind ?? config.vcsKind ?? "auto";

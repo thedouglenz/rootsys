@@ -238,4 +238,4 @@ export interface ProjectionSnapshotQueryShape {
 export class ProjectionSnapshotQuery extends Context.Service<
   ProjectionSnapshotQuery,
   ProjectionSnapshotQueryShape
->()("rootsys/orchestration/Services/ProjectionSnapshotQuery") {}
+>()("@thedouglenz/trellis/orchestration/Services/ProjectionSnapshotQuery") {}

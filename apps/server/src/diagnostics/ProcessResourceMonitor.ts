@@ -17,7 +17,7 @@ export class ProcessResourceMonitor extends Context.Service<
       input: ServerProcessResourceHistoryInput,
     ) => Effect.Effect<ServerProcessResourceHistoryResult>;
   }
->()("rootsys/diagnostics/ProcessResourceMonitor") {}
+>()("@thedouglenz/trellis/diagnostics/ProcessResourceMonitor") {}
 
 function isLegacyBackendCategory(category: ResourceTelemetryProcessCategory): boolean {
   return (

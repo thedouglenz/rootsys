@@ -1,5 +1,5 @@
 /**
- * DAG timeline (rootsys): pure mapping from a DAG's `dag.*` events to the
+ * DAG timeline (trellis): pure mapping from a DAG's `dag.*` events to the
  * flat `DagTimelineEntry` rows clients render as a run log.
  */
 import type { DagTimelineActor, DagTimelineEntry, OrchestrationEvent } from "@t3tools/contracts";

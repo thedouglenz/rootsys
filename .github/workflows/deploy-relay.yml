@@ -1,6 +1,6 @@
 name: Deploy T3 Connect relay
 
-# Manual only in this fork: rootsys runs no relay and has no Cloudflare account.
+# Manual only in this fork: trellis runs no relay and has no Cloudflare account.
 # Restore the push trigger if this fork ever deploys its own T3 Connect relay.
 on:
   workflow_dispatch:

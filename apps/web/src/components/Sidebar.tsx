@@ -216,7 +216,7 @@ const SETTLED_TAIL_PAGE_COUNT = 25;
 // Keep the v2 key so existing preferences survive the v2-to-default rename.
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar-v2:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar-v2:snoozed-expanded";
-// rootsys: plan groups the user collapsed, keyed `${environmentId}:${dagId}`.
+// trellis: plan groups the user collapsed, keyed `${environmentId}:${dagId}`.
 const PLAN_GROUPS_COLLAPSED_KEY = "t3code:sidebar-v2:plan-groups-collapsed";
 
 function compactSidebarTimeLabel(label: string): string {
@@ -2354,7 +2354,7 @@ export default function Sidebar() {
     () => setSnoozedShelfExpanded((value) => !value),
     [setSnoozedShelfExpanded],
   );
-  // rootsys: active threads sharing a plan fold under one header. Groups
+  // trellis: active threads sharing a plan fold under one header. Groups
   // default to expanded; collapsing is remembered per plan.
   const activeThreadItems = useMemo(() => groupSidebarThreadsByDag(activeThreads), [activeThreads]);
   const [collapsedPlanGroups, setCollapsedPlanGroups] = useLocalStorage(

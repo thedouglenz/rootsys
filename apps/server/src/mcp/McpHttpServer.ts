@@ -219,13 +219,13 @@ export const PreviewToolkitRegistrationLive = Layer.mergeAll(
 );
 
 const McpTransportLive = McpServer.layerHttp({
-  name: "rootsys",
+  name: "trellis",
   version: packageJson.version,
   path: "/mcp",
   protocols: [McpProtocol.v2025_06_18],
 }).pipe(Layer.provide(McpAuthMiddlewareLive));
 
-// rootsys: `dag_*` tools ride the same MCP transport; per-session capability
+// trellis: `dag_*` tools ride the same MCP transport; per-session capability
 // gating happens in the handlers (McpInvocationContext.capabilities).
 export const DagToolkitRegistrationLive = McpServer.toolkit(DagToolkit).pipe(
   Layer.provide(DagToolkitHandlersLive),

@@ -1,6 +1,6 @@
 # T3 Connect
 
-> For maintainers. Using rootsys? See [docs/user](../user/).
+> For maintainers. Using trellis? See [docs/user](../user/).
 
 T3 Connect uses one Clerk application for web, desktop, and mobile authentication. The relay verifies
 two kinds of bearer credential: template JWTs generated from the `t3-relay` template with the shared
@@ -51,7 +51,7 @@ should set `T3CODE_CLERK_PUBLISHABLE_KEY`, `T3CODE_CLERK_JWT_TEMPLATE`,
 production builds only need the Clerk publishable key, JWT template name, and relay URL in their EAS
 environment.
 
-When any client-facing public value is absent, cloud UI is omitted. The `rootsys connect` command group is
+When any client-facing public value is absent, cloud UI is omitted. The `trellis connect` command group is
 always registered: when the CLI public values are absent, `makeCli` in `apps/server/src/bin.ts`
 registers a hidden fallback `connect` command that reports the missing configuration instead of
 silently vanishing from help. The bundled server still accepts runtime overrides for self-hosted or
@@ -73,7 +73,7 @@ personal developer stage.
 
 ## Headless CLI OAuth Application
 
-The `rootsys connect` commands authorize a headless environment with a separate Clerk OAuth application.
+The `trellis connect` commands authorize a headless environment with a separate Clerk OAuth application.
 This uses an OAuth public client with PKCE, so the CLI stores no client secret.
 
 In **Clerk Dashboard > OAuth applications**:
@@ -114,19 +114,19 @@ t3 connect unlink
 t3 connect logout
 ```
 
-`rootsys serve` is a separate top-level command, not a connect subcommand.
+`trellis serve` is a separate top-level command, not a connect subcommand.
 
-`rootsys connect login` opens the Clerk authorization flow and stores the CLI credential without enabling
-cloud exposure. `rootsys connect link` installs the pinned managed `cloudflared` binary when needed,
+`trellis connect login` opens the Clerk authorization flow and stores the CLI credential without enabling
+cloud exposure. `trellis connect link` installs the pinned managed `cloudflared` binary when needed,
 authorizes when needed, and records durable intent to expose the environment. It works without a
-running T3 server. The next `rootsys serve` or `rootsys start` reconciles the relay link and launches the
-managed tunnel. `rootsys connect unlink` records disabled intent immediately, stops a reachable running
+running T3 server. The next `trellis serve` or `trellis start` reconciles the relay link and launches the
+managed tunnel. `trellis connect unlink` records disabled intent immediately, stops a reachable running
 connector, and attempts to revoke the relay-side environment record. It retains the stored CLI
-authorization so `rootsys connect link` can re-enable exposure without another browser flow. `rootsys connect
+authorization so `trellis connect link` can re-enable exposure without another browser flow. `trellis connect
 logout` performs the same cleanup and removes the stored CLI authorization.
 
 The background service has an independent lifecycle. Connect setup may offer to install it, but
-logout leaves it running; manage it with `rootsys service status`, `install`, `update`, and `uninstall`.
+logout leaves it running; manage it with `trellis service status`, `install`, `update`, and `uninstall`.
 
 ### Headless and SSH authorization
 
@@ -229,7 +229,7 @@ binary from another:
 ```sh
 VITE_DEV_SERVER_URL=http://127.0.0.1:5733 \
 T3CODE_PORT=13773 \
-  "/Applications/rootsys (Alpha).app/Contents/MacOS/rootsys (Alpha)"
+  "/Applications/trellis (Alpha).app/Contents/MacOS/trellis (Alpha)"
 ```
 
 After changing Associated Domains, bump the build version before rebuilding; macOS may otherwise
@@ -238,8 +238,8 @@ reuse stale Shared Web Credentials metadata for the same app/version pair.
 Verify the installed bundle before testing:
 
 ```sh
-codesign --verify --deep --strict "/Applications/rootsys (Alpha).app"
-codesign -d --entitlements :- "/Applications/rootsys (Alpha).app"
+codesign --verify --deep --strict "/Applications/trellis (Alpha).app"
+codesign -d --entitlements :- "/Applications/trellis (Alpha).app"
 ```
 
 The current mobile UI uses Clerk's native authentication view. If a future mobile browser OAuth

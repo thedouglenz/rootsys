@@ -66,7 +66,7 @@ function installTestBrowser(url: string) {
   };
 
   vi.stubGlobal("window", testWindow);
-  vi.stubGlobal("document", { title: "rootsys" });
+  vi.stubGlobal("document", { title: "trellis" });
 
   return testWindow;
 }

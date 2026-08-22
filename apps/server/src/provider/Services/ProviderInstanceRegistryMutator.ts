@@ -49,4 +49,4 @@ export interface ProviderInstanceRegistryMutatorShape {
 export class ProviderInstanceRegistryMutator extends Context.Service<
   ProviderInstanceRegistryMutator,
   ProviderInstanceRegistryMutatorShape
->()("rootsys/provider/Services/ProviderInstanceRegistryMutator") {}
+>()("@thedouglenz/trellis/provider/Services/ProviderInstanceRegistryMutator") {}

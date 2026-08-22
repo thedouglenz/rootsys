@@ -503,7 +503,7 @@ export const RootStack = createNativeStackNavigator({
       linking: `${THREAD_LINKING_PREFIX}/files/:path*`,
       options: SOLID_HEADER_OPTIONS,
     }),
-    // Plans (rootsys) live flat in the root stack like threads: a list across
+    // Plans (trellis) live flat in the root stack like threads: a list across
     // environments and one detail screen per plan.
     Plans: createNativeStackScreen({
       screen: PlansRouteScreen,

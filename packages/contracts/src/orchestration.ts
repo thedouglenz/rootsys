@@ -373,7 +373,7 @@ export const OrchestrationThread = Schema.Struct({
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   // Pending-only state. Optional so older servers remain compatible.
   titleRegeneration: Schema.optional(Schema.NullOr(ThreadTitleRegeneration)),
-  // rootsys: the DAG this thread belongs to (executor of a node, planner, or
+  // trellis: the DAG this thread belongs to (executor of a node, planner, or
   // companion). Optional so pre-DAG payloads decode; absent/null = no link.
   dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
   deletedAt: Schema.NullOr(IsoDateTime),
@@ -391,7 +391,7 @@ export const OrchestrationReadModel = Schema.Struct({
   snapshotSequence: NonNegativeInt,
   projects: Schema.Array(OrchestrationProject),
   threads: Schema.Array(OrchestrationThread),
-  // DAG aggregates (rootsys). Optional so read models built without DAG
+  // DAG aggregates (trellis). Optional so read models built without DAG
   // support (fixtures, older snapshots) still typecheck and decode; absent
   // means "no DAGs".
   dags: Schema.optional(Schema.Array(DagGraph)),
@@ -647,7 +647,7 @@ const ThreadCreateCommand = Schema.Struct({
   ),
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-  // rootsys: tag planner/companion/executor threads with their DAG at creation.
+  // trellis: tag planner/companion/executor threads with their DAG at creation.
   dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
   createdAt: IsoDateTime,
 });
@@ -777,7 +777,7 @@ const ThreadTurnStartBootstrapCreateThread = Schema.Struct({
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
   createdAt: IsoDateTime,
-  // rootsys: planner/companion threads created from the Plans surface.
+  // trellis: planner/companion threads created from the Plans surface.
   dagLink: Schema.optional(Schema.NullOr(ThreadDagLink)),
 });
 

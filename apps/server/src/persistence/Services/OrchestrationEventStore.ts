@@ -86,4 +86,4 @@ export interface OrchestrationEventStoreShape {
 export class OrchestrationEventStore extends Context.Service<
   OrchestrationEventStore,
   OrchestrationEventStoreShape
->()("rootsys/persistence/Services/OrchestrationEventStore") {}
+>()("@thedouglenz/trellis/persistence/Services/OrchestrationEventStore") {}

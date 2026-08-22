@@ -1,10 +1,10 @@
-# rootsys
+# trellis
 
-rootsys is a fork of [T3 Code](https://github.com/pingdotgg/t3code) that adds **plans**: a graph of work that agents build, edit, and then execute mostly unattended.
+trellis is a fork of [T3 Code](https://github.com/pingdotgg/t3code) that adds **plans**: a graph of work that agents build, edit, and then execute mostly unattended.
 
 A plan's nodes are units of work an agent can finish in one focused session. Its edges say which nodes must finish before others may start. You describe a goal, a planner agent explores the repository and lays out the graph, and the execution engine hands each ready node to a coding agent and records what happened.
 
-Everything T3 Code does, rootsys still does — it wraps the provider CLIs you already have (Claude Code, Codex, Cursor, Grok Build, OpenCode) and serves web, desktop, and mobile clients from a local server.
+Everything T3 Code does, trellis still does — it wraps the provider CLIs you already have (Claude Code, Codex, Cursor, Grok Build, OpenCode) and serves web, desktop, and mobile clients from a local server.
 
 ## What the fork adds
 
@@ -18,20 +18,20 @@ See [docs/user/plans.md](./docs/user/plans.md) for how to drive it, and [docs/in
 
 ## Relationship to T3 Code
 
-T3 Code is built by [T3 Tools](https://github.com/pingdotgg) and is MIT licensed. rootsys keeps that license and that copyright notice, tracks upstream continuously, and sends non-plan fixes back where they apply.
+T3 Code is built by [T3 Tools](https://github.com/pingdotgg) and is MIT licensed. trellis keeps that license and that copyright notice, tracks upstream continuously, and sends non-plan fixes back where they apply.
 
-This is an independent fork, not a T3 Tools product. Please don't take rootsys bugs to them — [open an issue here](https://github.com/thedouglenz/rootsys/issues) instead.
+This is an independent fork, not a T3 Tools product. Please don't take trellis bugs to them — [open an issue here](https://github.com/thedouglenz/trellis/issues) instead.
 
-rootsys deliberately keeps its own identity so the two can coexist on one machine: its own npm package and binary, and its own state directory at `~/.rootsys`. It also keeps its own migration lineage, so a `state.sqlite` written by T3 Code is refused rather than silently half-migrated.
+trellis deliberately keeps its own identity so the two can coexist on one machine: its own npm package and binary, and its own state directory at `~/.trellis`. It also keeps its own migration lineage, so a `state.sqlite` written by T3 Code is refused rather than silently half-migrated.
 
 ## Install
 
 ```bash
-npx rootsys@latest
+npx @thedouglenz/trellis@latest
 ```
 
-That starts the rootsys server on your machine and opens the local web app. Use
-`npx rootsys@latest --help` for the full CLI reference.
+That starts the trellis server on your machine and opens the local web app. Use
+`npx @thedouglenz/trellis@latest --help` for the full CLI reference.
 
 You need Node.js `^22.16 || ^23.11 || >=24.10` and at least one provider CLI installed and
 authenticated:
@@ -55,7 +55,7 @@ condition rather than an error.
 ## Running from source
 
 Building from source needs Node.js 24.13.1+, which is stricter than the published CLI.
-rootsys uses [Vite+](https://viteplus.dev/guide/), so install the `vp` CLI first:
+trellis uses [Vite+](https://viteplus.dev/guide/), so install the `vp` CLI first:
 
 ```bash
 curl -fsSL https://vite.plus | bash    # macOS / Linux
@@ -65,8 +65,8 @@ irm https://vite.plus/ps1 | iex        # Windows
 Then:
 
 ```bash
-git clone https://github.com/thedouglenz/rootsys.git
-cd rootsys
+git clone https://github.com/thedouglenz/trellis.git
+cd trellis
 vp i
 vp run dev
 ```
@@ -85,7 +85,7 @@ Full docs live in [docs/](./docs). There's no docs site.
 - [Remote access from a phone or another machine](./docs/user/remote-access.md)
 - [Source control integrations](./docs/user/source-control.md)
 - Multiple accounts: [Codex](./docs/user/providers-codex.md) · [Claude](./docs/user/providers-claude.md)
-- Linux: [run rootsys as a background service](./docs/user/background-service.md)
+- Linux: [run trellis as a background service](./docs/user/background-service.md)
 
 Building on it? Start at [docs/internals/overview.md](./docs/internals/overview.md), then [docs/internals/dag.md](./docs/internals/dag.md).
 

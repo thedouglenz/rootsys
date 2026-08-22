@@ -39,4 +39,6 @@ export interface OrchestrationProjectionPipelineShape {
 export class OrchestrationProjectionPipeline extends Context.Service<
   OrchestrationProjectionPipeline,
   OrchestrationProjectionPipelineShape
->()("rootsys/orchestration/Services/ProjectionPipeline/OrchestrationProjectionPipeline") {}
+>()(
+  "@thedouglenz/trellis/orchestration/Services/ProjectionPipeline/OrchestrationProjectionPipeline",
+) {}

@@ -1,5 +1,5 @@
 /**
- * DagExecutionEngine - runs DAGs (rootsys).
+ * DagExecutionEngine - runs DAGs (trellis).
  *
  * Reacts to `dag.*` and `thread.session-set` domain events: schedules the
  * ready frontier of every running DAG onto provider threads, delivers
@@ -24,4 +24,4 @@ export interface DagExecutionEngineShape {
 export class DagExecutionEngine extends Context.Service<
   DagExecutionEngine,
   DagExecutionEngineShape
->()("rootsys/dag/Services/DagExecutionEngine") {}
+>()("@thedouglenz/trellis/dag/Services/DagExecutionEngine") {}

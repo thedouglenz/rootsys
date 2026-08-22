@@ -1,5 +1,5 @@
 /**
- * `dag_*` MCP toolkit (rootsys): lets any agent running inside a T3 thread
+ * `dag_*` MCP toolkit (trellis): lets any agent running inside a T3 thread
  * read, build, edit, and report progress on project DAGs.
  *
  * Scope resolution: a thread that is executing a DAG node (DagNode.threadId)

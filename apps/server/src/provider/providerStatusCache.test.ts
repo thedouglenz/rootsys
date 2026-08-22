@@ -193,7 +193,7 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
       version: null,
       status: "disabled",
       auth: { status: "unknown" },
-      message: "Codex is disabled in rootsys settings.",
+      message: "Codex is disabled in trellis settings.",
     });
 
     assert.deepStrictEqual(

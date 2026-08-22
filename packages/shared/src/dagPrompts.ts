@@ -1,5 +1,5 @@
 /**
- * Prompt builders for the three DAG agent roles (rootsys). Shared so the
+ * Prompt builders for the three DAG agent roles (trellis). Shared so the
  * server (executor turns) and clients (planner / companion kick-off) produce
  * one consistent vocabulary for the `dag_*` MCP tools.
  *

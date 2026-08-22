@@ -1,8 +1,8 @@
 # Glossary
 
-> For maintainers. Using rootsys? See [docs/user](../user/).
+> For maintainers. Using trellis? See [docs/user](../user/).
 
-This is a living glossary for rootsys. It explains what common terms mean in this codebase.
+This is a living glossary for trellis. It explains what common terms mean in this codebase.
 
 ## Table of contents
 
@@ -11,7 +11,7 @@ This is a living glossary for rootsys. It explains what common terms mean in thi
 - [Orchestration](#orchestration)
 - [Provider runtime](#provider-runtime)
 - [Checkpointing](#checkpointing)
-- [Project DAG (rootsys)](#project-dag-rootsys)
+- [Project DAG (trellis)](#project-dag-trellis)
 
 ## Concepts
 
@@ -181,7 +181,7 @@ The file patch and changed-file summary for one turn. It is usually computed in 
 [23]: ../../apps/server/src/checkpointing/Diffs.ts
 [24]: ./overview.md
 
-### Project DAG (rootsys)
+### Project DAG (trellis)
 
 #### DAG
 

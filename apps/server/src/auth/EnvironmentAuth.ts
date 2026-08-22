@@ -490,7 +490,7 @@ export class EnvironmentAuth extends Context.Service<
       baseUrl: string,
     ) => Effect.Effect<string, ServerAuthInternalError>;
   }
->()("rootsys/auth/EnvironmentAuth") {}
+>()("@thedouglenz/trellis/auth/EnvironmentAuth") {}
 
 type BootstrapExchangeResult = {
   readonly response: AuthBrowserSessionResult;

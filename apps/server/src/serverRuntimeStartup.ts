@@ -69,7 +69,7 @@ export class ServerRuntimeStartup extends Context.Service<
       effect: Effect.Effect<A, E>,
     ) => Effect.Effect<A, E | ServerRuntimeStartupError>;
   }
->()("rootsys/serverRuntimeStartup") {}
+>()("@thedouglenz/trellis/serverRuntimeStartup") {}
 
 interface QueuedCommand {
   readonly run: Effect.Effect<void, never>;
@@ -503,7 +503,7 @@ export const make = (options?: StartupOptions) =>
             const startupBrowserTarget = yield* resolveStartupBrowserTarget;
             if (serverConfig.mode !== "desktop") {
               yield* Effect.logInfo(
-                "Authentication required. Open rootsys using the pairing URL.",
+                "Authentication required. Open trellis using the pairing URL.",
               ).pipe(Effect.annotateLogs({ pairingUrl: startupBrowserTarget }));
             }
             yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));

@@ -190,7 +190,7 @@ const createVpPmPublishArgs = (config: PublishCommandConfig): ReadonlyArray<stri
   const args = [
     "publish",
     "--filter",
-    "rootsys",
+    "@thedouglenz/trellis",
     "--access",
     config.access,
     "--tag",

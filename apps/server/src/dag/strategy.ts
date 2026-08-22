@@ -1,5 +1,5 @@
 /**
- * Execution strategies (rootsys): how one DAG node's work is handed to a
+ * Execution strategies (trellis): how one DAG node's work is handed to a
  * provider thread. The engine picks the first strategy whose `matches`
  * returns true; strategies only shape the launch (prompt, interaction mode) —
  * the engine owns thread lifecycle and status bookkeeping.

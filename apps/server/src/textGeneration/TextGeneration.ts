@@ -114,7 +114,7 @@ export class TextGeneration extends Context.Service<
       input: ThreadTitleGenerationInput,
     ) => Effect.Effect<ThreadTitleGenerationResult, TextGenerationError>;
   }
->()("rootsys/textGeneration/TextGeneration") {}
+>()("@thedouglenz/trellis/textGeneration/TextGeneration") {}
 
 /** @deprecated Use `TextGeneration["Service"]`. */
 export type TextGenerationShape = TextGeneration["Service"];

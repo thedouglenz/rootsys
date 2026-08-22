@@ -7,6 +7,7 @@ import * as Fiber from "effect/Fiber";
 import * as Path from "effect/Path";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 
+import packageJson from "../../package.json" with { type: "json" };
 import * as ProcessRunner from "../processRunner.ts";
 import {
   ensurePinnedRuntimeInstalled,
@@ -21,7 +22,8 @@ const successfulRunner = (fs: FileSystem.FileSystem, path: Path.Path) =>
         const prefixIndex = input.args.indexOf("--prefix");
         const stagingDir = input.args[prefixIndex + 1];
         if (stagingDir === undefined) return yield* Effect.die("missing npm --prefix");
-        const entry = path.join(stagingDir, "node_modules", "rootsys", "dist", "bin.mjs");
+        // Mirrors pinnedRuntimePaths, which joins the scoped package name.
+        const entry = path.join(stagingDir, "node_modules", packageJson.name, "dist", "bin.mjs");
         yield* fs.makeDirectory(path.dirname(entry), { recursive: true }).pipe(Effect.orDie);
         yield* fs.writeFileString(entry, "export {};\n").pipe(Effect.orDie);
         return {

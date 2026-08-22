@@ -1,5 +1,5 @@
 /**
- * DAG state (rootsys): per-DAG live graph via `orchestration.subscribeDag`
+ * DAG state (trellis): per-DAG live graph via `orchestration.subscribeDag`
  * (snapshot + raw `dag.*` events folded with the shared contracts fold), a
  * list query, and command atoms. Shared by web and mobile.
  */

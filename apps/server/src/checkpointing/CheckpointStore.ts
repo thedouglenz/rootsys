@@ -94,7 +94,7 @@ export class CheckpointStore extends Context.Service<
       input: DeleteCheckpointRefsInput,
     ) => Effect.Effect<void, CheckpointStoreError>;
   }
->()("rootsys/checkpointing/CheckpointStore") {}
+>()("@thedouglenz/trellis/checkpointing/CheckpointStore") {}
 
 export const make = Effect.gen(function* () {
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;

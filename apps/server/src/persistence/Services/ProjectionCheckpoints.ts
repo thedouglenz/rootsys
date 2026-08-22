@@ -92,4 +92,6 @@ export interface ProjectionCheckpointRepositoryShape {
 export class ProjectionCheckpointRepository extends Context.Service<
   ProjectionCheckpointRepository,
   ProjectionCheckpointRepositoryShape
->()("rootsys/persistence/Services/ProjectionCheckpoints/ProjectionCheckpointRepository") {}
+>()(
+  "@thedouglenz/trellis/persistence/Services/ProjectionCheckpoints/ProjectionCheckpointRepository",
+) {}

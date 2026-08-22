@@ -1,5 +1,5 @@
 /**
- * `rootsys pair` - mint a pairing token for an already-running server and print it
+ * `trellis pair` - mint a pairing token for an already-running server and print it
  * as a QR code, without restarting anything.
  *
  * Discovery reads the `server-runtime.json` a live server persists next to its
@@ -76,9 +76,9 @@ export class NoRunningServerError extends Schema.TaggedErrorClass<NoRunningServe
 ) {
   override get message(): string {
     return [
-      "No running rootsys server found.",
+      "No running trellis server found.",
       ...this.checkedStatePaths.map((statePath) => `  checked ${statePath}`),
-      "Start one with `npx rootsys serve`, or connect this machine with T3 Connect: `npx rootsys connect`.",
+      "Start one with `npx @thedouglenz/trellis serve`, or connect this machine with T3 Connect: `npx @thedouglenz/trellis connect`.",
     ].join("\n");
   }
 }
@@ -108,7 +108,7 @@ export class ServesOtherEnvironmentError extends Schema.TaggedErrorClass<ServesO
   { servePort: Schema.Number },
 ) {
   override get message(): string {
-    return `Tailscale Serve on HTTPS port ${String(this.servePort)} already fronts a different rootsys server. Pass --tailscale-serve-port to publish this one on another port.`;
+    return `Tailscale Serve on HTTPS port ${String(this.servePort)} already fronts a different trellis server. Pass --tailscale-serve-port to publish this one on another port.`;
   }
 }
 
@@ -126,7 +126,7 @@ export class ServePortOccupiedError extends Schema.TaggedErrorClass<ServePortOcc
   { servePort: Schema.Number },
 ) {
   override get message(): string {
-    return `HTTPS port ${String(this.servePort)} on the tailnet already serves something that is not a rootsys server. Pass --tailscale-serve-port to publish this one on another port.`;
+    return `HTTPS port ${String(this.servePort)} on the tailnet already serves something that is not a trellis server. Pass --tailscale-serve-port to publish this one on another port.`;
   }
 }
 
@@ -215,7 +215,7 @@ const probeEnvironmentDescriptor = (
     );
     // Bad-gateway family means a proxy (Tailscale Serve) answered for a
     // backend that is gone — a stale mapping, not a live occupant. Treating
-    // it as unreachable lets `rootsys pair --tailscale` repair its own mapping
+    // it as unreachable lets `trellis pair --tailscale` repair its own mapping
     // after the server's port changed.
     if (response.status === 502 || response.status === 503 || response.status === 504) {
       return { _tag: "unreachable" } as const;
@@ -255,7 +255,7 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
     bases.push(yield* resolveBaseDir(explicitBaseDir));
   } else {
     // Same precedence as dev-runner: inside a linked worktree its own `.t3`
-    // outranks the shared home, so `rootsys pair` in a worktree pairs with the dev
+    // outranks the shared home, so `trellis pair` in a worktree pairs with the dev
     // server under test rather than the daily-driver install.
     const worktreeHome = yield* resolveWorktreeT3Home(process.cwd());
     if (worktreeHome !== undefined) {
@@ -489,7 +489,7 @@ export const pairCommand = Command.make("pair", {
   tailscaleServePort: tailscaleServePortFlag,
 }).pipe(
   Command.withDescription(
-    "Mint a pairing token for a running rootsys server and print it as a QR code.",
+    "Mint a pairing token for a running trellis server and print it as a QR code.",
   ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {

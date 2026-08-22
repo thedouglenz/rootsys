@@ -54,7 +54,7 @@ export interface ProviderMaintenanceRunnerShape {
 export class ProviderMaintenanceRunner extends Context.Service<
   ProviderMaintenanceRunner,
   ProviderMaintenanceRunnerShape
->()("rootsys/provider/providerMaintenanceRunner") {}
+>()("@thedouglenz/trellis/provider/providerMaintenanceRunner") {}
 
 class ProviderMaintenanceCommandError extends Data.TaggedError("ProviderMaintenanceCommandError")<{
   readonly message: string;
@@ -368,9 +368,9 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
                 startedAt,
                 finishedAt,
                 message: couldNotVerify
-                  ? "Update command completed, but rootsys could not verify the provider version."
+                  ? "Update command completed, but trellis could not verify the provider version."
                   : stillOutdated
-                    ? "Update command completed, but rootsys still detects an outdated provider version."
+                    ? "Update command completed, but trellis still detects an outdated provider version."
                     : "Provider updated.",
                 output: commandOutput(result),
               }),

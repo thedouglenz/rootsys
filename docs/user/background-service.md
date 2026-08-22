@@ -1,38 +1,38 @@
-# Running rootsys in the Background
+# Running trellis in the Background
 
-On Linux and macOS, rootsys can run as a background service for your user, so it is ready without
+On Linux and macOS, trellis can run as a background service for your user, so it is ready without
 keeping a terminal open.
 
 ## Manage the Service
 
-Install it with the latest rootsys release:
+Install it with the latest trellis release:
 
 ```sh
-rootsys service install
+trellis service install
 ```
 
 Check whether it is installed:
 
 ```sh
-rootsys service status
+trellis service status
 ```
 
 Update or repair it:
 
 ```sh
-rootsys service update
+trellis service update
 ```
 
 Stop it and remove it from startup:
 
 ```sh
-rootsys service uninstall
+trellis service uninstall
 ```
 
-Updating restarts rootsys briefly. Let active agent work and terminal commands finish first.
+Updating restarts trellis briefly. Let active agent work and terminal commands finish first.
 If a remote update is already in progress, wait for it to finish before retrying a local update.
 
-The service runs a small stable launcher. Exact rootsys versions are installed separately, so a
+The service runs a small stable launcher. Exact trellis versions are installed separately, so a
 failed remote candidate can return to the previous version without rewriting the service
 definition. The launcher snapshots the database before a remote candidate starts, so database
 updates roll back with the server version. An older launcher may require one local
@@ -69,5 +69,5 @@ A few more macOS notes:
 T3 Connect may offer to install the service during setup so the host stays reachable in the
 background. This is only an onboarding shortcut: the service and T3 Connect are managed separately.
 
-Signing out of T3 Connect does not remove the service. Use `rootsys service uninstall` when you no longer
-want rootsys to start in the background.
+Signing out of T3 Connect does not remove the service. Use `trellis service uninstall` when you no longer
+want trellis to start in the background.

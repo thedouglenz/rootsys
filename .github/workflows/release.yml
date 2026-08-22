@@ -2,7 +2,7 @@ name: Release
 
 # Manual only in this fork. Tagged releases go through publish-cli.yml, which
 # ships the npm CLI; the desktop, AUR, relay, web-deploy and Discord jobs below
-# need accounts and secrets rootsys does not have. Restore the push and schedule
+# need accounts and secrets trellis does not have. Restore the push and schedule
 # triggers when those surfaces ship.
 on:
   workflow_dispatch:
@@ -291,7 +291,7 @@ jobs:
           cache: true
           run-install: |
             args:
-              - --filter=rootsys...
+              - --filter=@thedouglenz/trellis...
 
       - name: Build node-pty linux-x64 prebuild
         shell: bash
@@ -387,7 +387,7 @@ jobs:
           run-install: |
             args:
               - --filter=@t3tools/desktop...
-              - --filter=rootsys...
+              - --filter=@thedouglenz/trellis...
               - --filter=@t3tools/scripts...
 
       - name: Setup Rust
@@ -691,7 +691,7 @@ jobs:
           cache: true
           run-install: |
             args:
-              - --filter=rootsys...
+              - --filter=@thedouglenz/trellis...
               - --filter=@t3tools/web...
               - --filter=@t3tools/scripts...
 
@@ -716,7 +716,7 @@ jobs:
         run: vp run --filter @t3tools/web build
 
       - name: Build CLI package
-        run: vp run --filter rootsys build
+        run: vp run --filter @thedouglenz/trellis build
 
       - name: Download resource monitors
         uses: actions/download-artifact@v8

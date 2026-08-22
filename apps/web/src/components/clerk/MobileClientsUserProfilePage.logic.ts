@@ -15,7 +15,7 @@ const NOTIFICATION_PREFERENCES = [
 >;
 
 export function mobileClientPlatformLabel(device: RelayClientDeviceRecord): string {
-  return `iOS ${device.iosMajorVersion}${device.appVersion ? ` · rootsys ${device.appVersion}` : ""}`;
+  return `iOS ${device.iosMajorVersion}${device.appVersion ? ` · trellis ${device.appVersion}` : ""}`;
 }
 
 export function mobileClientNotificationDetail(device: RelayClientDeviceRecord): string {

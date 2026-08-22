@@ -19,13 +19,13 @@ export const runServerCommand = (
   });
 
 export const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
-  Command.withDescription("Run the rootsys server."),
+  Command.withDescription("Run the trellis server."),
   Command.withHandler((flags) => runServerCommand(flags)),
 );
 
 export const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe(
   Command.withDescription(
-    "Run the rootsys server without opening a browser and print headless pairing details.",
+    "Run the trellis server without opening a browser and print headless pairing details.",
   ),
   Command.withHandler((flags) =>
     runServerCommand(flags, {

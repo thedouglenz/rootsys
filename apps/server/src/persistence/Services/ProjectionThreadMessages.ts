@@ -92,4 +92,6 @@ export interface ProjectionThreadMessageRepositoryShape {
 export class ProjectionThreadMessageRepository extends Context.Service<
   ProjectionThreadMessageRepository,
   ProjectionThreadMessageRepositoryShape
->()("rootsys/persistence/Services/ProjectionThreadMessages/ProjectionThreadMessageRepository") {}
+>()(
+  "@thedouglenz/trellis/persistence/Services/ProjectionThreadMessages/ProjectionThreadMessageRepository",
+) {}

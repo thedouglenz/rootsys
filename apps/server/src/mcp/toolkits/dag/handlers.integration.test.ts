@@ -139,7 +139,7 @@ it.layer(TestLayer)("dag toolkit handlers", (it) => {
         commandId: cmd(),
         projectId,
         title: "Project",
-        workspaceRoot: "/tmp/rootsys-dag-toolkit-test",
+        workspaceRoot: "/tmp/trellis-dag-toolkit-test",
         createdAt: NOW,
       });
 

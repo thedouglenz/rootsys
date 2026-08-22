@@ -54,4 +54,4 @@ export interface ProjectionDagRepositoryShape {
 export class ProjectionDagRepository extends Context.Service<
   ProjectionDagRepository,
   ProjectionDagRepositoryShape
->()("rootsys/persistence/Services/ProjectionDags/ProjectionDagRepository") {}
+>()("@thedouglenz/trellis/persistence/Services/ProjectionDags/ProjectionDagRepository") {}

@@ -71,7 +71,7 @@ export function buildInitialGrokProviderSnapshot(
           version: null,
           status: "warning",
           auth: { status: "unknown" },
-          message: "Grok is disabled in rootsys settings.",
+          message: "Grok is disabled in trellis settings.",
         },
       });
     }
@@ -180,7 +180,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Grok is disabled in rootsys settings.",
+        message: "Grok is disabled in trellis settings.",
       },
     });
   }

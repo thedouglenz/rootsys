@@ -1,5 +1,5 @@
 /**
- * `rootsys triage` - hand a misbehaving install to the user's own coding agent.
+ * `trellis triage` - hand a misbehaving install to the user's own coding agent.
  *
  * The command is deliberately thin: it writes a `context.md` with machine facts
  * (version, paths, server liveness), then launches claude or codex
@@ -169,7 +169,7 @@ export const triageCommand = Command.make("triage", {
   model: modelFlag,
 }).pipe(
   Command.withDescription(
-    "Investigate a rootsys problem on this machine with claude or codex, and help file a good issue.",
+    "Investigate a trellis problem on this machine with claude or codex, and help file a good issue.",
   ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
@@ -178,7 +178,7 @@ export const triageCommand = Command.make("triage", {
 
       // Triage is a user-facing feature: always the userdata state, never dev.
       // --base-dir wins; T3CODE_HOME is its documented env equivalent (same
-      // precedence as `rootsys pair`).
+      // precedence as `trellis pair`).
       const explicitBaseDir = Option.getOrUndefined(flags.baseDir);
       const envHome = yield* Config.string("T3CODE_HOME").pipe(Config.option);
       const baseDir = yield* resolveBaseDir(explicitBaseDir ?? Option.getOrUndefined(envHome));

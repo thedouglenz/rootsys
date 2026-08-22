@@ -76,7 +76,7 @@ export class ProjectSetupScriptRunner extends Context.Service<
       input: ProjectSetupScriptRunnerInput,
     ) => Effect.Effect<ProjectSetupScriptRunnerResult, ProjectSetupScriptRunnerError>;
   }
->()("rootsys/project/ProjectSetupScriptRunner") {}
+>()("@thedouglenz/trellis/project/ProjectSetupScriptRunner") {}
 
 export const make = Effect.gen(function* () {
   const projectionSnapshotQuery = yield* ProjectionSnapshotQuery.ProjectionSnapshotQuery;

@@ -191,7 +191,7 @@ describe("reconcileDesiredCloudLink", () => {
 
       expect(error).toMatchObject({
         _tag: "EnvironmentHttpUnauthorizedError",
-        message: "Run `rootsys connect link` to authorize this environment.",
+        message: "Run `trellis connect link` to authorize this environment.",
       });
     }).pipe(
       Effect.provideService(

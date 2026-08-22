@@ -265,7 +265,7 @@ export class GitHubCli extends Context.Service<
       readonly force?: boolean;
     }) => Effect.Effect<void, GitHubCliError>;
   }
->()("rootsys/sourceControl/GitHubCli") {}
+>()("@thedouglenz/trellis/sourceControl/GitHubCli") {}
 
 const RawGitHubRepositoryCloneUrlsSchema = Schema.Struct({
   nameWithOwner: TrimmedNonEmptyString,

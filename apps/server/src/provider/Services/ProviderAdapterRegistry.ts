@@ -97,4 +97,4 @@ export interface ProviderAdapterRegistryShape {
 export class ProviderAdapterRegistry extends Context.Service<
   ProviderAdapterRegistry,
   ProviderAdapterRegistryShape
->()("rootsys/provider/Services/ProviderAdapterRegistry") {}
+>()("@thedouglenz/trellis/provider/Services/ProviderAdapterRegistry") {}

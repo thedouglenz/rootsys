@@ -40,14 +40,14 @@ describe("deriveAuthClientMetadata", () => {
         },
       } as never,
       presented: {
-        label: "rootsys Mobile",
+        label: "trellis Mobile",
         deviceType: "mobile",
         os: "iOS",
       },
     });
 
     expect(metadata).toMatchObject({
-      label: "rootsys Mobile",
+      label: "trellis Mobile",
       browser: "Electron",
       deviceType: "mobile",
       ipAddress: "192.168.213.72",

@@ -172,7 +172,7 @@ export class DesktopTelemetryReceiver extends Context.Service<
       enabled: boolean,
     ) => Effect.Effect<void, DesktopTelemetryControlError>;
   }
->()("rootsys/resourceTelemetry/DesktopTelemetryReceiver") {}
+>()("@thedouglenz/trellis/resourceTelemetry/DesktopTelemetryReceiver") {}
 
 const decodeMessage = Schema.decodeUnknownEffect(DesktopHostTelemetryMessage);
 const encodeControlMessage = Schema.encodeEffect(

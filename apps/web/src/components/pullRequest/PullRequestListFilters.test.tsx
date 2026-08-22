@@ -118,7 +118,7 @@ describe("pull request filters menu", () => {
         {
           id: projectId,
           environmentId,
-          title: "rootsys",
+          title: "trellis",
           workspaceRoot: "/work/t3code",
         },
       ],
@@ -144,13 +144,13 @@ describe("pull request filters menu", () => {
         {
           id: projectId,
           environmentId: "env-1" as EnvironmentId,
-          title: "rootsys · one",
+          title: "trellis · one",
           workspaceRoot: "/work/t3code-1",
         },
         {
           id: projectId,
           environmentId: "env-2" as EnvironmentId,
-          title: "rootsys · two",
+          title: "trellis · two",
           workspaceRoot: "/work/t3code-2",
         },
       ],

@@ -59,7 +59,7 @@ export class CloudManagedEndpointRuntime extends Context.Service<
       config: RelayManagedEndpointRuntimeConfig | null,
     ) => Effect.Effect<CloudManagedEndpointRuntimeStatus>;
   }
->()("rootsys/cloud/ManagedEndpointRuntime/CloudManagedEndpointRuntime") {}
+>()("@thedouglenz/trellis/cloud/ManagedEndpointRuntime/CloudManagedEndpointRuntime") {}
 
 interface ActiveConnector {
   readonly child: ChildProcessSpawner.ChildProcessHandle;

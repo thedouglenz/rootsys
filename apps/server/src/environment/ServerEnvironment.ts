@@ -36,7 +36,7 @@ export class ServerEnvironment extends Context.Service<
     readonly getEnvironmentId: Effect.Effect<EnvironmentId>;
     readonly getDescriptor: Effect.Effect<ExecutionEnvironmentDescriptor>;
   }
->()("rootsys/environment/ServerEnvironment") {}
+>()("@thedouglenz/trellis/environment/ServerEnvironment") {}
 
 function platformOs(platform: NodeJS.Platform): ExecutionEnvironmentDescriptor["platform"]["os"] {
   switch (platform) {
@@ -159,7 +159,7 @@ export const make = Effect.gen(function* () {
 
   return ServerEnvironment.of({
     getEnvironmentId: Effect.succeed(environmentId),
-    // The publish opt-in and relay link change at runtime (`rootsys connect
+    // The publish opt-in and relay link change at runtime (`trellis connect
     // publish`, the client settings toggle), so the capability is read per
     // descriptor request rather than baked in at startup.
     getDescriptor: readAgentActivityPublishingActive(secrets).pipe(

@@ -100,7 +100,7 @@ export class ProviderSessionRuntimeRepository extends Context.Service<
       input: DeleteProviderSessionRuntimeInput,
     ) => Effect.Effect<void, ProviderSessionRuntimeRepositoryError>;
   }
->()("rootsys/persistence/ProviderSessionRuntime/ProviderSessionRuntimeRepository") {}
+>()("@thedouglenz/trellis/persistence/ProviderSessionRuntime/ProviderSessionRuntimeRepository") {}
 
 const ProviderSessionRuntimeDbRowSchema = ProviderSessionRuntime.mapFields(
   Struct.assign({

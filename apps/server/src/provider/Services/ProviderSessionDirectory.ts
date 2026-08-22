@@ -67,4 +67,4 @@ export interface ProviderSessionDirectoryShape {
 export class ProviderSessionDirectory extends Context.Service<
   ProviderSessionDirectory,
   ProviderSessionDirectoryShape
->()("rootsys/provider/Services/ProviderSessionDirectory") {}
+>()("@thedouglenz/trellis/provider/Services/ProviderSessionDirectory") {}

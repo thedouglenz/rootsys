@@ -79,4 +79,4 @@ export interface OrchestrationEngineShape {
 export class OrchestrationEngineService extends Context.Service<
   OrchestrationEngineService,
   OrchestrationEngineShape
->()("rootsys/orchestration/Services/OrchestrationEngine/OrchestrationEngineService") {}
+>()("@thedouglenz/trellis/orchestration/Services/OrchestrationEngine/OrchestrationEngineService") {}

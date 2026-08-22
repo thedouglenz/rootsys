@@ -109,7 +109,7 @@ export class ServiceLauncherClient extends Context.Service<
       ServiceLauncherClientError
     >;
   }
->()("rootsys/cloud/serviceLauncherClient") {}
+>()("@thedouglenz/trellis/cloud/serviceLauncherClient") {}
 
 const resolveStartup = Effect.fn("cloud.service_launcher_client.resolve_startup")(
   function* (options?: { readonly currentVersion?: string }) {

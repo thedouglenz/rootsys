@@ -179,7 +179,7 @@ export class AzureDevOpsPullRequestCli extends Context.Service<
       readonly requested: boolean;
     }) => Effect.Effect<void, AzureDevOpsPullRequestCliError>;
   }
->()("rootsys/pullRequest/AzureDevOpsPullRequestCli") {}
+>()("@thedouglenz/trellis/pullRequest/AzureDevOpsPullRequestCli") {}
 
 function statusArgs(state: PullRequestListState): ReadonlyArray<string> {
   switch (state) {

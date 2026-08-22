@@ -1,6 +1,6 @@
 name: Publish CLI
 
-# rootsys ships the npm CLI only. The full pipeline in release.yml also builds
+# trellis ships the npm CLI only. The full pipeline in release.yml also builds
 # signed desktop artifacts, publishes to AUR, deploys the relay and the web app,
 # and announces to Discord — none of which this fork has the accounts for. It is
 # kept on workflow_dispatch so it stays mergeable with upstream and can be
@@ -66,7 +66,7 @@ jobs:
           cache: true
           run-install: |
             args:
-              - --filter=rootsys...
+              - --filter=@thedouglenz/trellis...
               - --filter=@t3tools/web...
               - --filter=@t3tools/scripts...
 
@@ -74,16 +74,16 @@ jobs:
         run: node scripts/update-release-package-versions.ts "${{ steps.version.outputs.version }}"
 
       - name: Typecheck
-        run: vp run --filter rootsys typecheck
+        run: vp run --filter @thedouglenz/trellis typecheck
 
       - name: Test
-        run: vp run --filter rootsys test
+        run: vp run --filter @thedouglenz/trellis test
 
       - name: Build web package
         run: vp run --filter @t3tools/web build
 
       - name: Build CLI package
-        run: vp run --filter rootsys build
+        run: vp run --filter @thedouglenz/trellis build
 
       # The bundled Rust resource monitors come from release.yml's build matrix,
       # which this workflow does not run. resourceTelemetry treats a missing

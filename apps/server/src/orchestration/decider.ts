@@ -1415,7 +1415,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
     case "dag.node.status.set":
     case "dag.question.ask":
     case "dag.question.answer":
-      // rootsys: DAG aggregate commands are decided in their own module.
+      // trellis: DAG aggregate commands are decided in their own module.
       return yield* decideDagCommand({ command, readModel });
 
     default: {

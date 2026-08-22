@@ -256,7 +256,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
 
   const prepareMcpSession = (threadId: ThreadId, providerInstanceId: ProviderInstanceId) =>
     Effect.gen(function* () {
-      // rootsys: the MCP session is always attached so agents get the `dag`
+      // trellis: the MCP session is always attached so agents get the `dag`
       // toolkit; browser preview tools remain gated by the user's setting.
       // The registry keeps the thread's existing credentials only when they
       // grant the same capabilities — a resumed CLI presents the token it
@@ -611,7 +611,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         if (!instanceInfo.enabled) {
           return yield* toValidationError(
             "ProviderService.startSession",
-            `Provider instance '${resolvedInstanceId}' is disabled in rootsys settings.`,
+            `Provider instance '${resolvedInstanceId}' is disabled in trellis settings.`,
           );
         }
         const persistedBinding = Option.getOrUndefined(yield* directory.getBinding(threadId));

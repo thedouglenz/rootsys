@@ -29,7 +29,7 @@ export class ReviewService extends Context.Service<
       input: ReviewDiffFileContentsInput,
     ) => Effect.Effect<ReviewDiffFileContentsResult, ReviewDiffPreviewError>;
   }
->()("rootsys/review/ReviewService") {}
+>()("@thedouglenz/trellis/review/ReviewService") {}
 
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;

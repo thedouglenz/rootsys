@@ -318,7 +318,7 @@ export class GitVcsDriver extends Context.Service<
     readonly initRepo: (input: VcsInitInput) => Effect.Effect<void, GitCommandError>;
     readonly listLocalBranchNames: (cwd: string) => Effect.Effect<string[], GitCommandError>;
   }
->()("rootsys/vcs/GitVcsDriver") {}
+>()("@thedouglenz/trellis/vcs/GitVcsDriver") {}
 
 const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const GIT_CHECK_IGNORE_MAX_STDIN_BYTES = 256 * 1024;
@@ -711,9 +711,9 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       const commitEnv: NodeJS.ProcessEnv = {
         ...process.env,
         GIT_INDEX_FILE: tempIndexPath,
-        GIT_AUTHOR_NAME: "rootsys",
+        GIT_AUTHOR_NAME: "trellis",
         GIT_AUTHOR_EMAIL: "t3code@users.noreply.github.com",
-        GIT_COMMITTER_NAME: "rootsys",
+        GIT_COMMITTER_NAME: "trellis",
         GIT_COMMITTER_EMAIL: "t3code@users.noreply.github.com",
       };
 
@@ -756,7 +756,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           });
         }
 
-        const message = `rootsys checkpoint ref=${input.checkpointRef}`;
+        const message = `trellis checkpoint ref=${input.checkpointRef}`;
         const commitTreeResult = yield* execute({
           operation,
           cwd: input.cwd,

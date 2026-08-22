@@ -36,5 +36,5 @@ export interface CheckpointReactorShape {
  * CheckpointReactor - Service tag for checkpoint reactor workers.
  */
 export class CheckpointReactor extends Context.Service<CheckpointReactor, CheckpointReactorShape>()(
-  "rootsys/orchestration/Services/CheckpointReactor",
+  "@thedouglenz/trellis/orchestration/Services/CheckpointReactor",
 ) {}

@@ -62,5 +62,5 @@ export interface RuntimeReceiptBusShape {
 }
 
 export class RuntimeReceiptBus extends Context.Service<RuntimeReceiptBus, RuntimeReceiptBusShape>()(
-  "rootsys/orchestration/Services/RuntimeReceiptBus",
+  "@thedouglenz/trellis/orchestration/Services/RuntimeReceiptBus",
 ) {}
