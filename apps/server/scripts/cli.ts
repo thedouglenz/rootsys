@@ -189,6 +189,7 @@ interface PublishCommandConfig {
   readonly tag: string;
   readonly provenance: boolean;
   readonly dryRun: boolean;
+  readonly otp: string | undefined;
 }
 
 const createVpPmPublishArgs = (config: PublishCommandConfig): ReadonlyArray<string> => {
@@ -205,6 +206,9 @@ const createVpPmPublishArgs = (config: PublishCommandConfig): ReadonlyArray<stri
 
   if (config.provenance) args.push("--provenance");
   if (config.dryRun) args.push("--dry-run");
+  // npm requires 2FA to publish. An automation token with 2FA bypass is the
+  // better answer for CI; --otp is for publishing by hand.
+  if (config.otp !== undefined) args.push("--otp", config.otp);
 
   return args;
 };
@@ -217,6 +221,7 @@ const publishCmd = Command.make(
     appVersion: Flag.string("app-version").pipe(Flag.optional),
     provenance: Flag.boolean("provenance").pipe(Flag.withDefault(false)),
     dryRun: Flag.boolean("dry-run").pipe(Flag.withDefault(false)),
+    otp: Flag.string("otp").pipe(Flag.optional),
     verbose: Flag.boolean("verbose").pipe(Flag.withDefault(false)),
   },
   (config) =>
@@ -289,14 +294,22 @@ const publishCmd = Command.make(
             }
             yield* Effect.log("[cli] Applied package metadata and publish icon overrides");
 
-            const args = createVpPmPublishArgs(config);
+            const args = createVpPmPublishArgs({
+              ...config,
+              otp: Option.getOrUndefined(config.otp),
+            });
             const spawnCommand = yield* resolveSpawnCommand("vp", ["pm", ...args]);
 
             yield* Effect.log(`[cli] Running: vp pm ${args.join(" ")}`);
             yield* runCommand(
               ChildProcess.make(spawnCommand.command, spawnCommand.args, {
                 cwd: repoRoot,
-                stdout: config.verbose ? "inherit" : "ignore",
+                // The registry can demand a second factor mid-publish. Without an
+                // inherited tty on stdin the package manager sees a non-interactive
+                // session and gives up, even when a human is sitting right here, and
+                // a swallowed stdout hides the prompt it is waiting on.
+                stdin: "inherit",
+                stdout: "inherit",
                 stderr: "inherit",
                 shell: spawnCommand.shell,
               }),

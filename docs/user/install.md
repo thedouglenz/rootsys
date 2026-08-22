@@ -10,10 +10,6 @@ At least one provider CLI, installed and authenticated. See [Providers](#provide
 
 ## Run Without Installing
 
-> [!NOTE]
-> Not on npm yet — the first release is being cut. Until then, use
-> [Running from source](#running-from-source) below.
-
 ```bash
 npx @thedouglenz/trellis@latest
 ```
