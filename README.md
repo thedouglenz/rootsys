@@ -26,6 +26,10 @@ trellis deliberately keeps its own identity so the two can coexist on one machin
 
 ## Install
 
+> [!NOTE]
+> Not on npm yet — the first release is being cut. Until then, use
+> [Running from source](#running-from-source) below.
+
 ```bash
 npx @thedouglenz/trellis@latest
 ```
