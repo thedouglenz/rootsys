@@ -1,12 +1,10 @@
 name: Release
 
+# Manual only in this fork. Tagged releases go through publish-cli.yml, which
+# ships the npm CLI; the desktop, AUR, relay, web-deploy and Discord jobs below
+# need accounts and secrets rootsys does not have. Restore the push and schedule
+# triggers when those surfaces ship.
 on:
-  push:
-    tags:
-      - "v*.*.*"
-      - "!v*-nightly.*"
-  schedule:
-    - cron: "0 */3 * * *"
   workflow_dispatch:
     inputs:
       channel:

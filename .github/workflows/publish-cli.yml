@@ -1,0 +1,116 @@
+name: Publish CLI
+
+# rootsys ships the npm CLI only. The full pipeline in release.yml also builds
+# signed desktop artifacts, publishes to AUR, deploys the relay and the web app,
+# and announces to Discord — none of which this fork has the accounts for. It is
+# kept on workflow_dispatch so it stays mergeable with upstream and can be
+# revived when those surfaces ship.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (for example 1.2.3)"
+        required: true
+        type: string
+      dry_run:
+        description: "Build and pack, but do not publish"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish to npm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # create the GitHub release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - id: version
+        name: Resolve version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            raw="${{ inputs.version }}"
+          else
+            raw="${GITHUB_REF_NAME}"
+          fi
+          version="${raw#v}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Not an exact version: '$raw'" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: |
+            args:
+              - --filter=rootsys...
+              - --filter=@t3tools/web...
+              - --filter=@t3tools/scripts...
+
+      - name: Align package versions to release version
+        run: node scripts/update-release-package-versions.ts "${{ steps.version.outputs.version }}"
+
+      - name: Typecheck
+        run: vp run --filter rootsys typecheck
+
+      - name: Test
+        run: vp run --filter rootsys test
+
+      - name: Build web package
+        run: vp run --filter @t3tools/web build
+
+      - name: Build CLI package
+        run: vp run --filter rootsys build
+
+      # The bundled Rust resource monitors come from release.yml's build matrix,
+      # which this workflow does not run. resourceTelemetry treats a missing
+      # binary as a declared failure, so per-process telemetry is unavailable
+      # and the rest of the server is unaffected.
+      - name: Note omitted resource monitors
+        run: echo "::notice::Published without bundled resource monitors; per-process telemetry is unavailable."
+
+      - name: Configure npm auth
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish CLI package
+        if: ${{ github.event_name == 'push' || !inputs.dry_run }}
+        run: node apps/server/scripts/cli.ts publish --tag latest --app-version "${{ steps.version.outputs.version }}" --verbose
+
+      - name: Pack only (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: node apps/server/scripts/cli.ts publish --tag latest --app-version "${{ steps.version.outputs.version }}" --dry-run --verbose
+
+      - name: Publish GitHub Release
+        if: ${{ github.event_name == 'push' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
