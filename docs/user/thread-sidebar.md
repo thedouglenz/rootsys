@@ -12,6 +12,17 @@ If reordering is unavailable for one environment, update the rootsys server runn
 environment. Older servers can still pin and unpin threads, but do not understand synced ordering;
 their pinned threads keep the default newest-first order below the ones you have arranged.
 
+## Sorting the thread list
+
+The sort button beside the project filter controls the order of your active threads. Sort by
+**Created**, which holds every thread in the slot it opened in, or by **Last activity**, which
+follows the work as messages and turns land. Either one can run **Newest first** or **Oldest
+first**.
+
+The choice is stored on this device and applies to the active list only. Pinned threads keep the
+order you arranged, snoozed threads stay ordered by when they wake, and finished threads stay
+ordered by when their work ended.
+
 ## Environment artwork
 
 Dev and Nightly environments can identify themselves with artwork at the top of the sidebar and in

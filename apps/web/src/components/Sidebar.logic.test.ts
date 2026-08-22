@@ -807,6 +807,92 @@ describe("sortThreadsForSidebar", () => {
 
     expect(sorted.map((thread) => thread.id)).toEqual(["a", "b"]);
   });
+
+  it("reverses creation order when the direction is ascending", () => {
+    const sorted = sortThreadsForSidebar(
+      [
+        sortable({ id: "oldest", createdAt: "2026-03-09T08:00:00.000Z" }),
+        sortable({ id: "newest", createdAt: "2026-03-09T12:00:00.000Z" }),
+        sortable({ id: "middle", createdAt: "2026-03-09T10:00:00.000Z" }),
+      ],
+      { field: "created_at", direction: "asc" },
+    );
+
+    expect(sorted.map((thread) => thread.id)).toEqual(["oldest", "middle", "newest"]);
+  });
+
+  it("orders by last activity, reading turn stamps as well as user messages", () => {
+    const threads = [
+      // Created first, but its turn finished most recently.
+      {
+        id: "busy",
+        createdAt: "2026-03-09T08:00:00.000Z",
+        latestUserMessageAt: "2026-03-09T08:05:00.000Z",
+        latestTurn: makeLatestTurn({ completedAt: "2026-03-09T14:00:00.000Z" }),
+      },
+      // Created last, but nothing has happened in it since.
+      {
+        id: "quiet",
+        createdAt: "2026-03-09T12:00:00.000Z",
+        latestUserMessageAt: null,
+        latestTurn: null,
+      },
+      {
+        id: "middle",
+        createdAt: "2026-03-09T09:00:00.000Z",
+        latestUserMessageAt: "2026-03-09T13:00:00.000Z",
+        latestTurn: null,
+      },
+    ];
+
+    expect(
+      sortThreadsForSidebar(threads, { field: "last_activity", direction: "desc" }).map(
+        (thread) => thread.id,
+      ),
+    ).toEqual(["busy", "middle", "quiet"]);
+    expect(
+      sortThreadsForSidebar(threads, { field: "last_activity", direction: "asc" }).map(
+        (thread) => thread.id,
+      ),
+    ).toEqual(["quiet", "middle", "busy"]);
+  });
+
+  it("breaks last-activity ties by id in both directions", () => {
+    const threads = [
+      {
+        id: "b",
+        createdAt: "2026-03-09T08:00:00.000Z",
+        latestUserMessageAt: "2026-03-09T10:00:00.000Z",
+        latestTurn: null,
+      },
+      {
+        id: "a",
+        createdAt: "2026-03-09T09:00:00.000Z",
+        latestUserMessageAt: "2026-03-09T10:00:00.000Z",
+        latestTurn: null,
+      },
+    ];
+
+    for (const direction of ["desc", "asc"] as const) {
+      expect(
+        sortThreadsForSidebar(threads, { field: "last_activity", direction }).map(
+          (thread) => thread.id,
+        ),
+      ).toEqual(["a", "b"]);
+    }
+  });
+
+  it("falls back to creation time for threads with no activity yet", () => {
+    const sorted = sortThreadsForSidebar(
+      [
+        sortable({ id: "older", createdAt: "2026-03-09T08:00:00.000Z" }),
+        sortable({ id: "newer", createdAt: "2026-03-09T12:00:00.000Z" }),
+      ],
+      { field: "last_activity", direction: "desc" },
+    );
+
+    expect(sorted.map((thread) => thread.id)).toEqual(["newer", "older"]);
+  });
 });
 
 describe("pinOrderKeyBetween", () => {

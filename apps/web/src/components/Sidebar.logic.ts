@@ -1,7 +1,15 @@
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import type { ContextMenuItem } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import {
+  DEFAULT_SIDEBAR_THREAD_SORT_DIRECTION,
+  DEFAULT_SIDEBAR_THREAD_SORT_FIELD,
+  type SidebarProjectSortOrder,
+  type SidebarThreadSortDirection,
+  type SidebarThreadSortField,
+  type SidebarThreadSortOrder,
+} from "@t3tools/contracts/settings";
+import { threadLastActivityAt } from "@t3tools/client-runtime/state/thread-settled";
 import {
   getThreadSortTimestamp,
   sortThreads,
@@ -538,17 +546,60 @@ export function firstValidTimestamp(
   return null;
 }
 
-// Sidebar sort: static creation order, newest thread on top. Activity NEVER
-// reorders the list — a row holds its position from open until settled, so
-// the screen only moves at lifecycle transitions. Status (including pending
-// approval) is carried by each card's edge strip, not by position.
+/** The optional activity stamps the last-activity sort reads. Optional so
+    callers that only care about creation order (and tests) can pass a bare
+    row without inventing turn state. */
+export type ThreadSortActivityInput = {
+  readonly latestUserMessageAt?: string | null | undefined;
+  readonly latestTurn?: SidebarThreadSummary["latestTurn"] | undefined;
+};
+
+export type SidebarThreadOrder = {
+  readonly field: SidebarThreadSortField;
+  readonly direction: SidebarThreadSortDirection;
+};
+
+/** Creation order, newest first — the sidebar's original behavior, and what
+    every caller that has no user preference to read should pass. */
+export const DEFAULT_SIDEBAR_THREAD_ORDER: SidebarThreadOrder = {
+  field: DEFAULT_SIDEBAR_THREAD_SORT_FIELD,
+  direction: DEFAULT_SIDEBAR_THREAD_SORT_DIRECTION,
+};
+
+/** When a thread last moved: the newest of its last user message and its
+    latest turn's stamps (the same candidates auto-settle measures), falling
+    back to creation so a thread that has never run still sorts somewhere
+    stable instead of sinking to the epoch. */
+export function threadActivityTimestampMs(
+  thread: ThreadSortActivityInput & { readonly createdAt: string },
+): number {
+  const lastActivityAt = threadLastActivityAt({
+    latestUserMessageAt: thread.latestUserMessageAt ?? null,
+    latestTurn: thread.latestTurn ?? null,
+  });
+  return firstValidTimestampMs(lastActivityAt, thread.createdAt);
+}
+
+// Sidebar sort. The default is static creation order, newest thread on top:
+// activity does not reorder the list, so a row holds its position from open
+// until settled and the screen only moves at lifecycle transitions. Status
+// (including pending approval) is carried by each card's edge strip, not by
+// position. Users who would rather have the list follow the work can opt into
+// the last-activity field, in either direction (Sidebar → Sort threads).
 export function sortThreadsForSidebar<
-  T extends { readonly id: string; readonly createdAt: string },
->(threads: readonly T[]): T[] {
+  T extends { readonly id: string; readonly createdAt: string } & ThreadSortActivityInput,
+>(threads: readonly T[], order: SidebarThreadOrder = DEFAULT_SIDEBAR_THREAD_ORDER): T[] {
+  const timestampMs =
+    order.field === "last_activity"
+      ? threadActivityTimestampMs
+      : (thread: T) => parseTimestampMs(thread.createdAt);
+  // Ascending flips the timestamp comparison only: the id tiebreak stays
+  // ascending in both directions so equal-timestamp rows never swap places
+  // just because the direction changed.
+  const descending = order.direction === "desc" ? 1 : -1;
   return [...threads].toSorted(
     (left, right) =>
-      parseTimestampMs(right.createdAt) - parseTimestampMs(left.createdAt) ||
-      left.id.localeCompare(right.id),
+      descending * (timestampMs(right) - timestampMs(left)) || left.id.localeCompare(right.id),
   );
 }
 

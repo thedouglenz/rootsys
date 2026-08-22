@@ -31,10 +31,17 @@ import {
   scopedThreadKey,
 } from "@t3tools/client-runtime/environment";
 import type { ScopedThreadRef, ThreadId } from "@t3tools/contracts";
-import type { TimestampFormat } from "@t3tools/contracts/settings";
+import type {
+  SidebarThreadSortDirection,
+  SidebarThreadSortField,
+  TimestampFormat,
+} from "@t3tools/contracts/settings";
 import {
   AlarmClockIcon,
   AlarmClockOffIcon,
+  ArrowDownNarrowWideIcon,
+  ArrowUpDownIcon,
+  ArrowUpNarrowWideIcon,
   CheckIcon,
   ChevronDownIcon,
   CircleAlertIcon,
@@ -101,7 +108,7 @@ import { useThreadActions } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { openCommandPalette } from "../commandPaletteBus";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { useClientSettings } from "../hooks/useSettings";
+import { useClientSettings, useUpdateClientSettings } from "../hooks/useSettings";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useNowMinute } from "../hooks/useNowMinute";
@@ -174,7 +181,16 @@ import { useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
+import {
+  Menu,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuSeparator,
+  MenuTrigger,
+} from "./ui/menu";
 import { SidebarContent, SidebarGroup, SidebarMenuButton, useSidebar } from "./ui/sidebar";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
@@ -1720,6 +1736,94 @@ const SidebarSearchResultRow = memo(function SidebarSearchResultRow(props: {
   );
 });
 
+const THREAD_SORT_FIELD_LABELS: Record<SidebarThreadSortField, string> = {
+  created_at: "Created",
+  last_activity: "Last activity",
+};
+
+const THREAD_SORT_DIRECTION_LABELS: Record<SidebarThreadSortDirection, string> = {
+  desc: "Newest first",
+  asc: "Oldest first",
+};
+
+/** Orders the sidebar's active thread list. Pinned rows keep their manual
+    order, snoozed rows stay soonest-wake-first, and the settled tail stays
+    newest-finished-first — each of those orders answers its own question, so
+    this menu only moves the live list. */
+function SidebarThreadSortMenu(props: {
+  field: SidebarThreadSortField;
+  direction: SidebarThreadSortDirection;
+  onFieldChange: (field: SidebarThreadSortField) => void;
+  onDirectionChange: (direction: SidebarThreadSortDirection) => void;
+}) {
+  const DirectionIcon = props.direction === "asc" ? ArrowUpNarrowWideIcon : ArrowDownNarrowWideIcon;
+  return (
+    <Menu>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <MenuTrigger
+              render={
+                <SidebarMenuButton
+                  size="icon"
+                  type="button"
+                  className="relative shrink-0 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
+                  aria-label="Sort threads"
+                />
+              }
+            />
+          }
+        >
+          <ArrowUpDownIcon />
+        </TooltipTrigger>
+        <TooltipPopup side="right">
+          {`Sort threads: ${THREAD_SORT_FIELD_LABELS[props.field]}, ${THREAD_SORT_DIRECTION_LABELS[
+            props.direction
+          ].toLowerCase()}`}
+        </TooltipPopup>
+      </Tooltip>
+      <MenuPopup align="end" className="min-w-48">
+        <MenuGroup>
+          <MenuGroupLabel>Sort threads by</MenuGroupLabel>
+          <MenuRadioGroup
+            value={props.field}
+            onValueChange={(value) => props.onFieldChange(value as SidebarThreadSortField)}
+          >
+            {(
+              Object.entries(THREAD_SORT_FIELD_LABELS) as Array<[SidebarThreadSortField, string]>
+            ).map(([value, label]) => (
+              <MenuRadioItem key={value} value={value} className="text-sm">
+                {label}
+              </MenuRadioItem>
+            ))}
+          </MenuRadioGroup>
+        </MenuGroup>
+        <MenuSeparator />
+        <MenuGroup>
+          <MenuGroupLabel className="flex items-center gap-1.5">
+            <DirectionIcon className="size-3.5" />
+            Direction
+          </MenuGroupLabel>
+          <MenuRadioGroup
+            value={props.direction}
+            onValueChange={(value) => props.onDirectionChange(value as SidebarThreadSortDirection)}
+          >
+            {(
+              Object.entries(THREAD_SORT_DIRECTION_LABELS) as Array<
+                [SidebarThreadSortDirection, string]
+              >
+            ).map(([value, label]) => (
+              <MenuRadioItem key={value} value={value} className="text-sm">
+                {label}
+              </MenuRadioItem>
+            ))}
+          </MenuRadioGroup>
+        </MenuGroup>
+      </MenuPopup>
+    </Menu>
+  );
+}
+
 export default function Sidebar() {
   const projects = useProjects();
   const projectOrder = useUiStateStore((store) => store.projectOrder);
@@ -1732,6 +1836,25 @@ export default function Sidebar() {
   const confirmThreadDelete = useClientSettings((s) => s.confirmThreadDelete);
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const sidebarProjectSortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
+  const threadSortField = useClientSettings((s) => s.sidebarThreadSortField);
+  const threadSortDirection = useClientSettings((s) => s.sidebarThreadSortDirection);
+  const updateClientSettings = useUpdateClientSettings();
+  const threadOrder = useMemo(
+    () => ({ field: threadSortField, direction: threadSortDirection }),
+    [threadSortDirection, threadSortField],
+  );
+  const handleThreadSortFieldChange = useCallback(
+    (field: SidebarThreadSortField) => {
+      updateClientSettings({ sidebarThreadSortField: field });
+    },
+    [updateClientSettings],
+  );
+  const handleThreadSortDirectionChange = useCallback(
+    (direction: SidebarThreadSortDirection) => {
+      updateClientSettings({ sidebarThreadSortDirection: direction });
+    },
+    [updateClientSettings],
+  );
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
@@ -2100,7 +2223,7 @@ export default function Sidebar() {
           )
           .map((thread) => scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))),
       ),
-      activeThreads: sortThreadsForSidebar(active),
+      activeThreads: sortThreadsForSidebar(active, threadOrder),
       // Soonest wake first: "what comes back next" is the shelf's question.
       snoozedThreads: snoozed.toSorted(
         (left, right) =>
@@ -2118,6 +2241,7 @@ export default function Sidebar() {
     scopedProjectKeys,
     serverConfigs,
     snoozeWakeTick,
+    threadOrder,
     threads,
   ]);
 
@@ -3583,6 +3707,12 @@ export default function Sidebar() {
                     </MenuRadioGroup>
                   </MenuPopup>
                 </Menu>
+                <SidebarThreadSortMenu
+                  field={threadSortField}
+                  direction={threadSortDirection}
+                  onFieldChange={handleThreadSortFieldChange}
+                  onDirectionChange={handleThreadSortDirectionChange}
+                />
                 <Tooltip>
                   <TooltipTrigger
                     render={

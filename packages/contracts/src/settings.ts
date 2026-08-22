@@ -38,6 +38,18 @@ export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
 export const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
 
+// The default sidebar orders its own thread list, independent of the legacy
+// sidebar's `sidebarThreadSortOrder` (which the command palette and mobile
+// also read). `created_at` is the original behavior: a row holds its slot
+// from open until settled. `last_activity` lets the list follow the work.
+export const SidebarThreadSortField = Schema.Literals(["created_at", "last_activity"]);
+export type SidebarThreadSortField = typeof SidebarThreadSortField.Type;
+export const DEFAULT_SIDEBAR_THREAD_SORT_FIELD: SidebarThreadSortField = "created_at";
+
+export const SidebarThreadSortDirection = Schema.Literals(["desc", "asc"]);
+export type SidebarThreadSortDirection = typeof SidebarThreadSortDirection.Type;
+export const DEFAULT_SIDEBAR_THREAD_SORT_DIRECTION: SidebarThreadSortDirection = "desc";
+
 export const SidebarProjectGroupingMode = Schema.Literals([
   "repository",
   "repository_path",
@@ -235,6 +247,12 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   sidebarThreadSortOrder: SidebarThreadSortOrder.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_ORDER)),
+  ),
+  sidebarThreadSortField: SidebarThreadSortField.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_FIELD)),
+  ),
+  sidebarThreadSortDirection: SidebarThreadSortDirection.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_DIRECTION)),
   ),
   sidebarThreadPreviewCount: SidebarThreadPreviewCount.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_PREVIEW_COUNT)),
@@ -910,6 +928,8 @@ export const ClientSettingsPatch = Schema.Struct({
   ),
   sidebarProjectSortOrder: Schema.optionalKey(SidebarProjectSortOrder),
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
+  sidebarThreadSortField: Schema.optionalKey(SidebarThreadSortField),
+  sidebarThreadSortDirection: Schema.optionalKey(SidebarThreadSortDirection),
   sidebarThreadPreviewCount: Schema.optionalKey(SidebarThreadPreviewCount),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   wordWrap: Schema.optionalKey(Schema.Boolean),
