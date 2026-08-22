@@ -1,6 +1,6 @@
 ---
 name: sync-upstream
-description: Merge upstream T3 Code (pingdotgg/t3code) into this rootsys fork and resolve the conflicts, including measuring the incoming surface first, resolving the four UI files that habitually conflict, regenerating rather than merging derived files, and verifying before committing. Use when pulling upstream changes, when asked to "sync with upstream", "merge upstream", or "catch up with T3 Code", or when deciding whether a fork change is shaped to survive future merges.
+description: Merge upstream T3 Code (pingdotgg/t3code) into this rootsys fork and resolve the conflicts, including measuring the incoming surface first, resolving the four UI files that habitually conflict, regenerating rather than merging derived files, renumbering incoming migrations into this fork's lineage, restoring the fork's identity where upstream reintroduces its own (Effect service keys, workspace filters, CI runner labels, workflow triggers, repo pointers), and verifying before committing. Use when pulling upstream changes, when asked to "sync with upstream", "merge upstream", or "catch up with T3 Code", when a merge breaks typecheck or CI, or when deciding whether a fork change is shaped to survive future merges.
 ---
 
 # Sync upstream into rootsys
@@ -108,6 +108,59 @@ a `state.sqlite` copied from upstream T3 Code from booting on a half-migrated sc
 you renumber an upstream migration into our range, that guard is why the name must be
 recorded exactly as we list it.
 
+## 4c. Identity: what upstream keeps re-introducing
+
+rootsys publishes under its own name, so every upstream merge drags back the old one.
+None of this is optional — the first three break the build or the product.
+
+**Effect service keys.** `deterministicKeys` is `error` in `tsconfig.base.json` and derives
+each key from the package name, so every service in `apps/server` must be keyed
+`rootsys/<path>`. Any new service upstream adds arrives keyed `t3/<path>` and fails
+typecheck. `tsgo` prints the exact expected key for each one, so this is mechanical:
+
+```bash
+pnpm exec vp run --filter rootsys typecheck 2>&1 | grep TS377049
+```
+
+**Workspace filters.** The server package is `rootsys`, not `t3`. Upstream writes
+`--filter=t3...` in workflows and `dependsOn: ["t3#build"]` in `apps/desktop/vite.config.ts`.
+A stale filter fails with `Package 't3' not found`.
+
+**The published package name is read, never written.** `cloud/pinnedRuntime.ts` takes it
+from `packageJson.name`. If a merge reintroduces a literal `"t3"` there, self-update and
+the boot service will npm-install upstream's package and exec its binary as ours.
+
+**Runner labels.** Upstream runs on `blacksmith-*`, its paid runner service. We have no
+account, so those jobs queue until they time out instead of failing. Map any new one to a
+GitHub-hosted label (`ubuntu-24.04`, `macos-latest`), which is free on public repos.
+
+**Workflow triggers.** `release.yml`, `deploy-relay.yml` and `mobile-eas-production.yml` are
+`workflow_dispatch`-only here; they need Clerk, Cloudflare and EAS accounts we do not have.
+Tagged releases go through `publish-cli.yml`. Merges that restore a `push:` or `schedule:`
+trigger put a failing (or, for the nightly cron, three-hourly failing) job back.
+
+**Repo pointers.** `apps/server/src/cli/triagePrompt.ts` must name `thedouglenz/rootsys`, or
+`rootsys triage` fetches upstream's playbook and files issues on their tracker.
+`triagePrompt.test.ts` asserts the prompt is **byte-identical** to
+`.github/triage/PLAYBOOK.md`, so edit both together — old installs fetch the repo copy from
+`main` and follow it when it differs.
+
+### Rename display text; never rename identifiers
+
+When a merge brings in new "T3 Code" or `t3 <cmd>` strings, ask which kind it is. Renamed:
+anything a user reads. Left alone, deliberately:
+
+| Kept                                              | Why                                                                                                         |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `T3CODE_*` env vars                               | ~300 occurrences, invisible to users, pure conflict surface                                                 |
+| `t3.json`, its `t3.codes` schema URL              | the project files already in real repositories                                                              |
+| `mcp_servers.t3-code` config key                  | wire identity every provider adapter writes; only MCP `serverInfo.name` was renamed                         |
+| `legacyUserDataDirName`                           | names a directory that only ever existed as `T3 Code (Alpha)`; renaming breaks the legacy-install migration |
+| `~/.t3/ssh-launch`, `~/.t3/dev`, `<worktree>/.t3` | not the server base dir; only `~/.t3/userdata` moved to `~/.rootsys/userdata`                               |
+| "T3 Connect"                                      | upstream's service, which we do not run                                                                     |
+| `apps/desktop/src`, `apps/mobile/src`             | not shipped yet; rename by hand when they ship                                                              |
+| `"T3 Code Mobile"` in tests                       | those model the unrenamed mobile client                                                                     |
+
 ## 5. Verify before committing
 
 ```bash
@@ -120,10 +173,23 @@ pnpm exec vp fmt <resolved files>
 pnpm exec vp lint <resolved files>
 ```
 
-Never run repo-wide checks (`vp check`, `vp run -r test`) — CI owns those, and they are
-slow enough to hide the signal. Pre-existing `TS377030` / `TS377026` diagnostics in
-`bin.test.ts` and migration tests are noise; compare against the pre-merge baseline
-before believing a new error.
+Never run repo-wide checks (`vp check`, `vp run -r test`) for a routine merge — CI owns
+those, and they are slow enough to hide the signal.
+
+`apps/server` typechecks clean as of #1, so there is no longer a baseline of expected
+noise. Any `TS377049` / `TS377030` / `TS377026` you see is real.
+
+**Before tagging a release, run the full server suite once anyway:**
+
+```bash
+pnpm exec vp run --filter rootsys test
+```
+
+Picking test files by grepping for the strings you changed is not good enough, and has
+missed real breakage twice. It misses cross-file invariants (`triagePrompt.test.ts` compares
+against `.github/triage/PLAYBOOK.md`), fixtures that encode a path rather than a message
+(`pinnedRuntime.test.ts` builds `node_modules/<pkg>/dist/bin.mjs`), and URL-encoded copies
+of a string (`client_label=T3+Code+Mobile`). The full run takes about three minutes.
 
 ## 6. Land it
 
