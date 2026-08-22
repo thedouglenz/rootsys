@@ -2182,9 +2182,6 @@ describe("ProviderCommandReactor", () => {
         { id: "effort", value: "medium" },
       ]);
     const turn = (index: number, model: string) =>
-      // oxlint-disable-next-line t3code/no-manual-effect-runtime-in-tests -- This test drives the
-      // reactor through the same promise-based waitFor choreography as every other test in this
-      // file; it.effect would make it the only one here not matching the file's harness.
       Effect.runPromise(
         harness.engine.dispatch({
           type: "thread.turn.start",
