@@ -24,15 +24,17 @@ This is an independent fork, not a T3 Tools product. Please don't take rootsys b
 
 rootsys deliberately keeps its own identity so the two can coexist on one machine: its own npm package and binary, and its own state directory at `~/.rootsys`. It also keeps its own migration lineage, so a `state.sqlite` written by T3 Code is refused rather than silently half-migrated.
 
-## Status
+## Install
 
-Early, and not yet published. There is no npm package, no desktop build, and no app-store listing — the only way to run it today is from source.
+```bash
+npx rootsys@latest
+```
 
-If you want the polished, installable product, use [T3 Code](https://github.com/pingdotgg/t3code). Come back here when you want plans.
+That starts the rootsys server on your machine and opens the local web app. Use
+`npx rootsys@latest --help` for the full CLI reference.
 
-## Running from source
-
-You need Node.js 24.13.1+ and at least one provider CLI installed and authenticated:
+You need Node.js `^22.16 || ^23.11 || >=24.10` and at least one provider CLI installed and
+authenticated:
 
 - Codex: [Codex CLI](https://developers.openai.com/codex/cli), then `codex login`
 - Claude: [Claude Code](https://claude.com/product/claude-code), then `claude auth login`
@@ -40,6 +42,19 @@ You need Node.js 24.13.1+ and at least one provider CLI installed and authentica
 - Grok Build: [Grok Build CLI](https://x.ai/cli), then `grok login`
 - OpenCode: [OpenCode](https://opencode.ai), then `opencode auth login`
 
+## Status
+
+Early. The CLI is the only thing published — no desktop build and no app-store listing, so
+if you want a packaged, installable product, use [T3 Code](https://github.com/pingdotgg/t3code)
+and come back here when you want plans.
+
+Published builds do not bundle the native resource monitors, so the per-process CPU and memory
+display is unavailable. Everything else works; the server treats the missing binary as a known
+condition rather than an error.
+
+## Running from source
+
+Building from source needs Node.js 24.13.1+, which is stricter than the published CLI.
 rootsys uses [Vite+](https://viteplus.dev/guide/), so install the `vp` CLI first:
 
 ```bash

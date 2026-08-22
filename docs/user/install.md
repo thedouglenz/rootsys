@@ -8,10 +8,23 @@ Node.js `^22.16 || ^23.11 || >=24.10` on the machine that runs the rootsys serve
 
 At least one provider CLI, installed and authenticated. See [Providers](#providers) below.
 
-## Install
+## Run Without Installing
 
-rootsys is not published yet. There is no npm package, no desktop build, and no package-registry
-entry, so the only way to run it today is from source:
+```bash
+npx rootsys@latest
+```
+
+This starts the rootsys server on your machine and opens the local web app. Use
+`npx rootsys@latest --help` for the full CLI reference.
+
+Published builds do not bundle the native resource monitors, so the per-process CPU and memory
+display is unavailable. The server treats the missing binary as a known condition rather than an
+error, and nothing else is affected.
+
+## Build From Source
+
+There is no desktop build and no package-registry entry yet. To run the desktop app, or to work
+on rootsys itself, build it:
 
 ```bash
 git clone https://github.com/thedouglenz/rootsys.git
@@ -20,15 +33,13 @@ vp i
 vp run dev
 ```
 
-That needs the [Vite+](https://viteplus.dev/guide/) `vp` CLI, which you can install with
+That needs Node.js 24.13.1+ (stricter than the published CLI) and the
+[Vite+](https://viteplus.dev/guide/) `vp` CLI, installed with
 `curl -fsSL https://vite.plus | bash` on macOS and Linux, or `irm https://vite.plus/ps1 | iex` on
 Windows.
 
 The dev runner prints the URLs it bound to, along with a pairing URL for the web app. Use the
 whole pairing URL, token included — the bare origin will not let you in.
-
-If you want an installable, packaged product today, use
-[T3 Code](https://github.com/pingdotgg/t3code), which rootsys is forked from.
 
 ## Providers
 
