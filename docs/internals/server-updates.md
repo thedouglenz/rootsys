@@ -1,6 +1,6 @@
 # Server Update Architecture
 
-> For maintainers. Using T3 Code? See [docs/user](../user/).
+> For maintainers. Using rootsys? See [docs/user](../user/).
 
 Remote server updates use one stable launcher selected by the platform service manager (systemd on
 Linux, launchd on macOS). Foreground CLI processes do not self-update, and a running server never
@@ -14,8 +14,8 @@ The service files under `<baseDir>/runtime` are:
 - `service-state.json`, the launcher's durable selection state;
 - `versions/<version>`, immutable exact-version npm installs.
 
-The launcher is the only runtime writer of `service-state.json`. `t3 service install` and
-`t3 service update` may replace the launcher and state while the unit is stopped. Server children
+The launcher is the only runtime writer of `service-state.json`. `rootsys service install` and
+`rootsys service update` may replace the launcher and state while the unit is stopped. Server children
 only communicate with the launcher over their inherited IPC channel.
 
 The state contains one active version and, at most, one update record:
@@ -65,7 +65,7 @@ The protocol version is part of the safety boundary. A target that requires data
 blocked when the installed launcher is too old. Upgrade the launcher once with:
 
 ```sh
-npx t3@<version> service update
+rootsys@<version> service update
 ```
 
 The local command stops the unit, selects the new launcher and exact runtime, then restarts the

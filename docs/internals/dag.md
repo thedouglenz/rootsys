@@ -1,6 +1,6 @@
 # Project DAGs (rootsys)
 
-rootsys extends T3 Code with a **project DAG**: a long-lived plan for a
+rootsys extends rootsys with a **project DAG**: a long-lived plan for a
 multi-turn (often multi-day) piece of work, rendered as a graph the user can
 see and edit, built up-front by a multi-agent planner, and executed mostly
 uninterrupted by an engine that hands nodes to provider threads.
@@ -46,7 +46,7 @@ DAG status is `draft | ready | running | paused | completed | failed | archived`
 | Web canvas + companion editor                                         | `apps/web/src/components/dag/` (slice 4)                                                                                                                   |
 | Execution engine + strategies                                         | `apps/server/src/dag/` (slice 5)                                                                                                                           |
 
-Everything is additive to upstream T3 Code and confined to those paths (plus a
+Everything is additive to upstream rootsys and confined to those paths (plus a
 handful of union/registration touch points) so the fork can rebase.
 
 ## Event flow
