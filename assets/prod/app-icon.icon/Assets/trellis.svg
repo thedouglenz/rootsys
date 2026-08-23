@@ -1,0 +1,21 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <clipPath id="frame">
+    <rect x="18" y="18" width="92" height="92" rx="18" />
+  </clipPath>
+  <g clip-path="url(#frame)" stroke="white" stroke-width="6" stroke-linecap="butt">
+    <line x1="18" y1="-74" x2="110" y2="18" />
+    <line x1="18" y1="-40" x2="110" y2="52" />
+    <line x1="18" y1="-6" x2="110" y2="86" />
+    <line x1="18" y1="28" x2="110" y2="120" />
+    <line x1="18" y1="62" x2="110" y2="154" />
+    <line x1="18" y1="96" x2="110" y2="188" />
+    <line x1="18" y1="18" x2="110" y2="-74" />
+    <line x1="18" y1="52" x2="110" y2="-40" />
+    <line x1="18" y1="86" x2="110" y2="-6" />
+    <line x1="18" y1="120" x2="110" y2="28" />
+    <line x1="18" y1="154" x2="110" y2="62" />
+    <line x1="18" y1="188" x2="110" y2="96" />
+  </g>
+  <rect x="22.0" y="22.0" width="84" height="84" rx="14.0"
+        stroke="white" stroke-width="8" fill="none" />
+</svg>

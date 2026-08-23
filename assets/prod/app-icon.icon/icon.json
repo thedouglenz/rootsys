@@ -6,10 +6,10 @@
     {
       "layers": [
         {
-          "image-name": "text.svg",
-          "name": "Text",
+          "image-name": "trellis.svg",
+          "name": "Trellis",
           "position": {
-            "scale": 8.5,
+            "scale": 7.5,
             "translation-in-points": [0, 0]
           }
         }
